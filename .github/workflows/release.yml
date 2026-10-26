@@ -1,0 +1,79 @@
+name: release
+
+on:
+  push:
+    tags: ['v[0-9]+.[0-9]+.[0-9]+*']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+env:
+  # php-baremetal/spec tag this release is tested and built against: set it to the released spec tag
+  # before tagging, and keep the tests job's spec-ref below equal to it
+  SPEC_REF: v1.0.0
+
+jobs:
+  tag:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check that the tag is a semver release version
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          if ! [[ "$TAG" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-(alpha|beta|RC)(\.?[0-9]+)?)?$ ]]; then
+            echo "::error::tag '$TAG' is not vX.Y.Z or vX.Y.Z-alphaN/-betaN/-RCN (semver that Composer and Packagist accept)"
+            exit 1
+          fi
+
+  tests:
+    needs: tag
+    uses: ./.github/workflows/tests.yml
+    with:
+      spec-ref: v1.0.0
+
+  release:
+    needs: tests
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          path: phpbm
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          repository: php-baremetal/spec
+          path: packages/spec
+          ref: ${{ env.SPEC_REF }}
+      - uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # 2.40.0
+        with:
+          php-version: '8.4'
+          extensions: zip
+          tools: composer
+          coverage: none
+      - run: composer install --no-dev --no-interaction --no-progress --optimize-autoloader
+        working-directory: phpbm
+        env:
+          COMPOSER_MIRROR_PATH_REPOS: '1'
+      - run: php phpbm app:build phpbm.phar --build-version="${GITHUB_REF_NAME#v}" --no-interaction
+        working-directory: phpbm
+      - name: Check the PHAR
+        working-directory: phpbm/builds
+        run: |
+          export PHPBM_HOME="$RUNNER_TEMP/phpbm-home"
+          php phpbm.phar --version | grep -F "${GITHUB_REF_NAME#v}"
+          php phpbm.phar list
+          php phpbm.phar sdk:list
+          sha256sum phpbm.phar > SHA256SUMS
+      - uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
+        with:
+          files: |
+            phpbm/builds/phpbm.phar
+            phpbm/builds/SHA256SUMS
+          prerelease: ${{ contains(github.ref_name, '-') }}
+          fail_on_unmatched_files: true
+          generate_release_notes: true

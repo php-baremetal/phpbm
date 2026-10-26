@@ -1,0 +1,42 @@
+name: tests
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+  workflow_call:
+    inputs:
+      spec-ref:
+        description: php-baremetal/spec ref to test against (default branch when empty)
+        type: string
+        default: ''
+
+jobs:
+  tests:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        php: ['8.4', '8.5']
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          path: phpbm
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          repository: php-baremetal/spec
+          path: packages/spec
+          ref: ${{ inputs.spec-ref }}
+      - uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # 2.40.0
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: zip
+          tools: composer
+          coverage: none
+      - run: composer install --no-interaction --no-progress
+        working-directory: phpbm
+      - run: vendor/bin/pest
+        working-directory: phpbm
+      - run: php phpbm list
+        working-directory: phpbm

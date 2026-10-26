@@ -1,0 +1,9 @@
+* text=auto eol=lf
+*.php text eol=lf
+*.json text eol=lf
+*.patch text eol=lf
+*.tar.gz binary
+*.zip binary
+/.github export-ignore
+CONTRIBUTING.md export-ignore
+CHANGELOG.md export-ignore

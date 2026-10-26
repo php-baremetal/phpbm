@@ -1,0 +1,56 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Support;
+
+use App\PhpbmException;
+
+final readonly class Home
+{
+    public function __construct(public string $root)
+    {
+    }
+
+    /** @param array<string,string>|null $env */
+    public static function fromEnvironment(?array $env = null): self
+    {
+        $env ??= getenv();
+        $value = static fn (string $name): string => is_string($env[$name] ?? null) ? $env[$name] : '';
+
+        if ($value('PHPBM_HOME') !== '') {
+            return new self(rtrim(Paths::resolve((string) getcwd(), $value('PHPBM_HOME')), '/\\'));
+        }
+        foreach ([$value('HOME'), $value('USERPROFILE'), $value('HOMEDRIVE') . $value('HOMEPATH')] as $home) {
+            if ($home !== '') {
+                return new self(rtrim($home, '/\\') . '/.phpbm');
+            }
+        }
+        throw new PhpbmException('cannot locate the home directory: set PHPBM_HOME');
+    }
+
+    public function sdks(): string
+    {
+        return $this->root . '/sdks';
+    }
+
+    public function toolchain(string $platform): string
+    {
+        return $this->root . '/toolchains/' . $platform;
+    }
+
+    public function cache(): string
+    {
+        return $this->root . '/cache';
+    }
+
+    public function downloads(): string
+    {
+        return $this->cache() . '/downloads';
+    }
+
+    public function trees(): string
+    {
+        return $this->cache() . '/trees';
+    }
+}
