@@ -17,9 +17,10 @@
     ],
     "require": {
         "php": "^8.4",
+        "ext-fileinfo": "*",
+        "composer/semver": "^3.4",
         "laravel-zero/foundation": "^13.23",
         "laravel-zero/framework": "^13.0",
-        "composer/semver": "^3.4",
         "php-baremetal/spec": "^1.0"
     },
     "require-dev": {
@@ -51,16 +52,5 @@
     "prefer-stable": true,
     "bin": [
         "phpbm"
-    ],
-    "repositories": [
-        {
-            "type": "path",
-            "url": "../packages/spec",
-            "options": {
-                "versions": {
-                    "php-baremetal/spec": "1.0.0"
-                }
-            }
-        }
     ]
 }

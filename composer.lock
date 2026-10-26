@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "e6685efd1db2e4b12049fa185f5569aa",
+    "content-hash": "45d8f250c0062282398db75958844d96",
     "packages": [
         {
             "name": "brick/math",
@@ -2832,14 +2832,20 @@
         },
         {
             "name": "php-baremetal/spec",
-            "version": "1.0.0",
+            "version": "v1.0.0",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/php-baremetal/spec.git",
+                "reference": "bf944bfcffe32dd03b44143d239cd8e3c74a8cd5"
+            },
             "dist": {
-                "type": "path",
-                "url": "../packages/spec",
-                "reference": "87a7a2483fee6b456e8aa3eb63e802c5a2144500"
+                "type": "zip",
+                "url": "https://api.github.com/repos/php-baremetal/spec/zipball/bf944bfcffe32dd03b44143d239cd8e3c74a8cd5",
+                "reference": "bf944bfcffe32dd03b44143d239cd8e3c74a8cd5",
+                "shasum": ""
             },
             "require": {
-                "php": ">=8.3"
+                "php": ">=8.4"
             },
             "require-dev": {
                 "phpunit/phpunit": "^11.0"
@@ -2853,11 +2859,7 @@
                     "PhpBaremetal\\Spec\\": "src/"
                 }
             },
-            "autoload-dev": {
-                "psr-4": {
-                    "PhpBaremetal\\Spec\\Tests\\": "tests/"
-                }
-            },
+            "notification-url": "https://packagist.org/downloads/",
             "license": [
                 "MIT"
             ],
@@ -2868,9 +2870,11 @@
                 }
             ],
             "description": "Shared model of the php-baremetal build manifest and the SDK driver contract.",
-            "transport-options": {
-                "relative": true
-            }
+            "support": {
+                "issues": "https://github.com/php-baremetal/spec/issues",
+                "source": "https://github.com/php-baremetal/spec/tree/v1.0.0"
+            },
+            "time": "2026-10-19T11:29:48+00:00"
         },
         {
             "name": "phpoption/phpoption",
@@ -8665,7 +8669,8 @@
     "prefer-stable": true,
     "prefer-lowest": false,
     "platform": {
-        "php": "^8.4"
+        "php": "^8.4",
+        "ext-fileinfo": "*"
     },
     "platform-dev": {},
     "plugin-api-version": "2.6.0"
