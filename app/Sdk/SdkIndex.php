@@ -13,7 +13,9 @@ use UnexpectedValueException;
 
 final readonly class SdkIndex
 {
-    public const DEFAULT = 'https://github.com/php-baremetal/php-{name}-sdk/releases/latest/download/index.json';
+    // Until the esp32 SDK 2.0.0 is released: the previews built from its sdk branch. Then back to
+    // 'https://github.com/php-baremetal/php-{name}-sdk/releases/latest/download/index.json'.
+    public const DEFAULT = 'https://github.com/php-baremetal/php-{name}-sdk/releases/download/sdk-preview/index.json';
 
     public function __construct(private string $pattern = self::DEFAULT)
     {

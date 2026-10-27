@@ -119,7 +119,7 @@ the `board` of a new project, or to check which port a board is on. It works out
   flash   8MB
   mac     xx:xx:xx:xx:xx:xx
   radio   WiFi, BLE
-  sdk     esp32 1.0.0
+  sdk     esp32 2.0.0
   board   waveshare-esp32-s3-eth  Waveshare ESP32-S3-ETH
   board   waveshare-esp32-s3-zero  Waveshare ESP32-S3-Zero
   …       one line per ESP32-S3 board of the SDK

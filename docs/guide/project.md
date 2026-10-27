@@ -30,7 +30,7 @@ next: { label: 'SDKs and phpbm.lock', href: './sdks.md' }
   },
   "extra": {
     "baremetal": {
-      "sdk": "esp32@^1.0",
+      "sdk": "esp32@^2.0",
       "board": "waveshare-esp32-s3-touch-lcd-1.85b",
       "runtime": "init-loop",
       "storage": "embedded"
@@ -52,7 +52,7 @@ next: { label: 'SDKs and phpbm.lock', href: './sdks.md' }
 
 | Key | Required | Meaning |
 | --- | --- | --- |
-| `sdk` | yes | SDK name and version constraint, e.g. `esp32@^1.0`. |
+| `sdk` | yes | SDK name and version constraint, e.g. `esp32@^2.0`. |
 | `board` | yes | A board id of the SDK. `phpbm discover` lists the ones that match the connected chip. |
 | `runtime` | yes | How the script runs. `esp32`: `init-loop`, `event-driven`, `web-server`. |
 | `storage` | yes | Where the PHP sources live. `esp32`: `embedded` (in flash, read-only), `microsd`. |
@@ -84,7 +84,7 @@ run `composer update --lock`: it refreshes the hash and the manifest without upd
 
 Runtimes add their own: `init-loop` has `loop-interval` (ms between two `loop()` calls), `web-server` has
 `port` and `init` (a script run once at boot). The SDK release describes every option; this table is the
-`esp32` SDK 1.0.
+`esp32` SDK 2.0.
 
 ## The env file
 

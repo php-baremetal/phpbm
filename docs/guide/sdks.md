@@ -21,12 +21,18 @@ https://github.com/php-baremetal/php-{name}-sdk/releases/latest/download/index.j
 ```
 <!-- @endcode-block -->
 
+<!-- @callout variant="note" title="Until the esp32 SDK 2.0.0" -->
+The 2.0 SDK is not released yet. Until it is, phpbm reads the previews built from the SDK's `sdk` branch
+(`releases/download/sdk-preview/index.json`, versions `2.0.0-alpha.N`), which `esp32@^2.0` accepts. Once
+2.0.0 is out, run `phpbm sdk:update` in your projects.
+<!-- @endcallout -->
+
 `{name}` is the SDK name (`esp32`). `PHPBM_SDK_INDEX` replaces the pattern; a local path or a `file://` URL
 works too, which is how you test an SDK release before publishing it.
 
 ## Installing
 
-`phpbm sdk:install esp32` installs the newest release; `phpbm sdk:install esp32@^1.0` the newest that
+`phpbm sdk:install esp32` installs the newest release; `phpbm sdk:install esp32@^2.0` the newest that
 satisfies the constraint. The archive is checked against the index's sha256 and unpacked into
 `~/.phpbm/sdks/esp32/<version>`. You rarely need the command: a build installs the SDK version the project
 needs by itself.
@@ -41,8 +47,8 @@ version that satisfies `extra.baremetal.sdk` and writes it to `phpbm.lock`:
 {
   "sdk": {
     "name": "esp32",
-    "constraint": "^1.0",
-    "version": "1.0.0",
+    "constraint": "^2.0",
+    "version": "2.0.0",
     "sha256": "…"
   }
 }
@@ -52,7 +58,7 @@ version that satisfies `extra.baremetal.sdk` and writes it to `phpbm.lock`:
 From then on every build uses exactly that version, on every machine. Commit the file.
 
 - If the installed copy of that version has a different sha256, the build stops: remove it with
-  `phpbm sdk:remove esp32@1.0.0` and build again.
+  `phpbm sdk:remove esp32@2.0.0` and build again.
 - If you change the constraint so that the locked version no longer satisfies it, the build stops and asks
   for `phpbm sdk:update`.
 - `phpbm sdk:update` moves the project to the newest version its constraint allows and prints the old and the

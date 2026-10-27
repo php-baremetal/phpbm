@@ -16,7 +16,7 @@ missing or unusable.
 
 ## esp32: ESP-IDF
 
-The `esp32` SDK 1.0 builds with ESP-IDF v6.1, for the ESP32-S3 and ESP32-P4.
+The `esp32` SDK 2.0 builds with ESP-IDF v6.1, for the ESP32-S3 and ESP32-P4.
 
 | | |
 | --- | --- |

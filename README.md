@@ -97,7 +97,7 @@ phpbm monitor
   },
   "extra": {
     "baremetal": {
-      "sdk": "esp32@^1.0",
+      "sdk": "esp32@^2.0",
       "board": "waveshare-esp32-s3-touch-lcd-1.85b",
       "runtime": "init-loop",
       "storage": "embedded"
@@ -148,7 +148,7 @@ project's own build files are in its `.phpbm/` directory, which `phpbm init` add
 | Variable | Meaning |
 | --- | --- |
 | `PHPBM_HOME` | Use this directory instead of `~/.phpbm`. |
-| `PHPBM_SDK_INDEX` | Where SDK release indexes are read from, with `{name}` for the SDK name. Default `https://github.com/php-baremetal/php-{name}-sdk/releases/latest/download/index.json`; a local path or a `file://` URL also works. |
+| `PHPBM_SDK_INDEX` | Where SDK release indexes are read from, with `{name}` for the SDK name. Default `https://github.com/php-baremetal/php-{name}-sdk/releases/download/sdk-preview/index.json` (the SDK previews, until the esp32 SDK 2.0.0 is released; then `https://github.com/php-baremetal/php-{name}-sdk/releases/latest/download/index.json`); a local path or a `file://` URL also works. |
 | `PHPBM_REPOSITORY` | The package registry `phpbm init` writes into new projects. Default `https://repository.php-baremetal.com`. |
 
 ## License

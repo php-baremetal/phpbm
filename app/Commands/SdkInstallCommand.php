@@ -11,7 +11,7 @@ use App\Sdk\SdkStore;
 
 final class SdkInstallCommand extends PhpbmCommand
 {
-    protected $signature = 'sdk:install {sdk : SDK name, optionally with a constraint (esp32@^1.0)}';
+    protected $signature = 'sdk:install {sdk : SDK name, optionally with a constraint (esp32@^2.0)}';
 
     protected $description = 'Install an SDK';
 

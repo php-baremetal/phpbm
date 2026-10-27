@@ -40,7 +40,7 @@ Only `cache/` is safe to delete at any time (`phpbm cache:clear`).
 | Variable | Default | Meaning |
 | --- | --- | --- |
 | `PHPBM_HOME` | `~/.phpbm` | Where phpbm keeps SDKs, toolchains and the cache. |
-| `PHPBM_SDK_INDEX` | `https://github.com/php-baremetal/php-{name}-sdk/releases/latest/download/index.json` | The release index pattern; `{name}` is the SDK name. A local path or a `file://` URL also works. |
+| `PHPBM_SDK_INDEX` | `https://github.com/php-baremetal/php-{name}-sdk/releases/download/sdk-preview/index.json` | The release index pattern (the SDK previews until the esp32 SDK 2.0.0 is released, then `https://github.com/php-baremetal/php-{name}-sdk/releases/latest/download/index.json`); `{name}` is the SDK name. A local path or a `file://` URL also works. |
 | `PHPBM_REPOSITORY` | `https://repository.php-baremetal.com` | The package registry `phpbm init` writes into new projects. |
 
 SDKs read their own variables; for `esp32` see [Toolchains](../guide/toolchains.md).

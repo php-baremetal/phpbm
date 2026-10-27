@@ -25,7 +25,7 @@ next: { label: 'Files and environment', href: '../reference/files-and-environmen
 <!-- @method name="phpbm sdk:install name[@constraint]" -->
 
 Reads the SDK's release index and installs the newest version that satisfies the constraint (any version when
-there is none): `phpbm sdk:install esp32`, `phpbm sdk:install esp32@^1.0`, `phpbm sdk:install esp32@1.0.0`.
+there is none): `phpbm sdk:install esp32`, `phpbm sdk:install esp32@^2.0`, `phpbm sdk:install esp32@2.0.0`.
 An already installed version is left as it is.
 
 ## sdk:list
@@ -52,7 +52,7 @@ The directory must hold the SDK of that name. Linked SDKs are never locked.
 
 <!-- @method name="phpbm sdk:remove name@version" -->
 
-`phpbm sdk:remove esp32@1.0.0` deletes that installed version; `phpbm sdk:remove esp32@dev` removes the link
+`phpbm sdk:remove esp32@2.0.0` deletes that installed version; `phpbm sdk:remove esp32@dev` removes the link
 and leaves the linked directory alone. A project locked to a removed version installs it again on its next build.
 
 ## toolchain:install
