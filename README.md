@@ -1,5 +1,19 @@
 # phpbm
 
+<p>
+  <img alt="Status: preview, not ready for use" src="https://img.shields.io/badge/status-preview%20%E2%80%94%20not%20ready%20for%20use-DC2626?style=flat-square">
+</p>
+
+> [!CAUTION]
+> **PREVIEW — NOT READY FOR USE.**
+>
+> phpbm is a preview, together with the 2.0 ESP32 SDK it drives. It is not stable and not meant for real
+> projects: anything (the commands, the project format, the SDK and the package APIs) can still change
+> without notice, and a build can fail or misbehave on the board. Use it only to try things out and report
+> problems. If you need something that works today, stay on the 1.x firmware of
+> [`php-esp32-sdk`](https://github.com/php-baremetal/php-esp32-sdk/tree/v1.5.0) (tag `v1.5.0`) and its own
+> tooling.
+
 `php-baremetal/phpbm` is the command-line tool of php-baremetal: it builds, flashes and monitors PHP firmware for
 microcontrollers. It runs on your computer (Linux, macOS or Windows), never on the board. It knows nothing about a
 particular chip: everything platform-specific comes from an SDK, such as the ESP32 one
