@@ -7,6 +7,7 @@ namespace App\Commands;
 use App\PhpbmException;
 use App\Sdk\DriverFactory;
 use App\Sdk\SdkStore;
+use App\Support\FlashSize;
 use PhpBaremetal\Spec\Sdk\Port;
 
 final class DiscoverCommand extends PhpbmCommand
@@ -90,8 +91,20 @@ final class DiscoverCommand extends PhpbmCommand
             if ($boards === []) {
                 $this->line('  board   none for this chip in the sdk');
             }
+            $fitting = [];
             foreach ($boards as $board) {
-                $this->line("  board   {$board->id}  {$board->name}");
+                $fits = FlashSize::fits($board->flash, $chip->flashSize);
+                $this->line("  board   {$board->id}  {$board->name}" . ($fits ? '' : "  (needs {$board->flash} of flash)"));
+                if ($fits) {
+                    $fitting[] = $board->id;
+                }
+            }
+            if ($boards !== [] && $fitting === []) {
+                $this->line("  board   none of these fits the chip's {$chip->flashSize} of flash");
+            } elseif (count($fitting) === 1) {
+                $this->line("  use     \"board\": \"{$fitting[0]}\" in extra.baremetal");
+            } elseif ($fitting !== []) {
+                $this->line('  use     "board": "<id>" in extra.baremetal, with one of the boards above');
             }
             return;
         }

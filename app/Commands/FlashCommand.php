@@ -9,12 +9,13 @@ use App\Build\PortPicker;
 use App\PhpbmException;
 use App\Project\ConductorCheck;
 use App\Project\Project;
+use App\Support\FlashSize;
 
 final class FlashCommand extends PhpbmCommand
 {
     protected $signature = 'flash
         {--p|port= : Serial port of the board}
-        {--force : Flash even if the connected chip does not match the board}';
+        {--force : Flash even if the connected chip does not match the board or has less flash}';
 
     protected $description = 'Build the firmware if needed and flash it to the board';
 
@@ -32,6 +33,9 @@ final class FlashCommand extends PhpbmCommand
             }
             if ($chip->target !== $expected) {
                 throw new PhpbmException("board '{$build->plan->board->id}' uses {$expected}, but the chip on {$port->path} is {$chip->target} (use --force to flash anyway)");
+            }
+            if (!FlashSize::fits($build->plan->board->flash, $chip->flashSize)) {
+                throw new PhpbmException("board '{$build->plan->board->id}' needs {$build->plan->board->flash} of flash, but the chip on {$port->path} has {$chip->flashSize} (use --force to flash anyway)");
             }
         }
 

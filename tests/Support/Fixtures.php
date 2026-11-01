@@ -68,7 +68,7 @@ final class Fixtures
             ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES),
             'chips/demo/chip.json' => '{"name":"Demo","target":"demo","capabilities":{"microsd":["spi"],"network":["wifi"]},"psram":["quad"]}',
             'boards/demo-board.json' => '{"name":"Demo board","chip":"demo","flash":"4MB","microsd":{"type":"spi","cs":1,"sclk":2,"mosi":3,"miso":4}}',
-            'boards/demo-net.json' => '{"name":"Demo net","chip":"demo","flash":"4MB","network":{"type":"wifi"}}',
+            'boards/demo-net.json' => '{"name":"Demo net","chip":"demo","flash":"8MB","network":{"type":"wifi"}}',
             'runtimes/loop/runtime.json' => '{"description":"Runs a loop","options":{"restart-delay":{"description":"Seconds before a restart","type":"int","min":0,"max":3600,"default":5}}}',
             'runtimes/server/runtime.json' => '{"description":"HTTP server","options":{"retries":{"description":"Retries","type":"int","min":0,"max":9,"default":3}},"requires":{"capabilities":["network"],"packages":["php-baremetal/ext-web"]}}',
             'runtimes/xclash/runtime.json' => '{"description":"Clashes with the sdk","options":{"on-error":{"description":"Again","values":["stop","continue"],"default":"stop"}}}',
@@ -158,7 +158,7 @@ final class Fixtures
         return $dir;
     }
 
-    /** @param array{ports?: list<string>, chips?: array<string,string>} $config */
+    /** @param array{ports?: list<string>, chips?: array<string,string>, flash?: array<string,?string>} $config */
     public static function toolchain(Home $home, array $config = [], bool $installed = true): void
     {
         $dir = $home->toolchain('demo');
@@ -233,7 +233,8 @@ final class Driver implements \PhpBaremetal\Spec\Sdk\Driver
     {
         $this->log('identify ' . $port->path);
         $target = $this->config()['chips'][$port->path] ?? null;
-        return $target === null ? null : new ChipInfo($target, 'Demo ' . $target, 'v1', '4MB');
+        $flash = $this->config()['flash'] ?? [];
+        return $target === null ? null : new ChipInfo($target, 'Demo ' . $target, 'v1', array_key_exists($port->path, $flash) ? $flash[$port->path] : '4MB');
     }
 
     public function ports(): array

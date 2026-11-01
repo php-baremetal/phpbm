@@ -71,13 +71,18 @@ project under `~/.phpbm/cache/trees`.
 Builds if needed, reads the chip on the port and flashes. With `microsd` storage it then copies the sources to
 the card, like `phpbm sync`.
 
+Before flashing it checks the chip against the board: the chip must be the board's, and its flash must be at
+least as large as the board's `flash` (a firmware built for 8MB does not start on a 4MB chip). When the chip
+does not report its flash size, that check is skipped.
+
 <!-- @params heading="Options" -->
 <!-- @param name="-p, --port" type="string" -->
 Serial port, e.g. `/dev/ttyACM0` or `COM5`. Without it phpbm uses the only port it finds, or asks when there
 are several.
 <!-- @endparam -->
 <!-- @param name="--force" type="bool" -->
-Flash even when no chip answers or the chip is not the board's (an ESP32-P4 board on an ESP32-S3).
+Flash even when no chip answers, the chip is not the board's (an ESP32-P4 board on an ESP32-S3), or its flash
+is smaller than the board's.
 <!-- @endparam -->
 <!-- @endparams -->
 
@@ -109,8 +114,10 @@ monitor at 115200 baud; leave it with <kbd>Ctrl</kbd> + <kbd>]</kbd>.
 <!-- @method name="phpbm discover [-p port]" -->
 
 Probes the serial ports with every installed SDK and prints, for each port, the chip (name, revision, flash
-size, MAC, radios), the SDK that recognised it and the boards of that SDK built on that chip. Run it to pick
-the `board` of a new project, or to check which port a board is on. It works outside a project.
+size, MAC, radios), the SDK that recognised it and the boards of that SDK built on that chip. A board with more
+flash than the chip is marked `(needs 16MB of flash)`. When exactly one board fits, the last line is the
+`"board"` entry to put in `extra.baremetal`. Run it to pick the `board` of a new project, or to check which
+port a board is on. It works outside a project.
 
 <!-- @code-block language="Text" label="phpbm discover" -->
 ```text
@@ -120,8 +127,10 @@ the `board` of a new project, or to check which port a board is on. It works out
   mac     xx:xx:xx:xx:xx:xx
   radio   WiFi, BLE
   sdk     esp32 2.0.0
-  board   waveshare-esp32-s3-eth  Waveshare ESP32-S3-ETH
-  board   waveshare-esp32-s3-zero  Waveshare ESP32-S3-Zero
+  board   waveshare-esp32-s3-zero-n8r8  Waveshare ESP32-S3-Zero (N8R8)
+  board   waveshare-esp32-s3-eth  Waveshare ESP32-S3-ETH  (needs 16MB of flash)
+  board   waveshare-esp32-s3-touch-lcd-1.85b  Waveshare ESP32-S3-Touch-LCD-1.85B  (needs 16MB of flash)
   …       one line per ESP32-S3 board of the SDK
+  use     "board": "<id>" in extra.baremetal, with one of the boards above
 ```
 <!-- @endcode-block -->

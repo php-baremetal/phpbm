@@ -59,3 +59,33 @@ it('flashes anyway with --force', function () {
     $this->artisan('flash', ['--port' => '/dev/x', '--force' => true])->assertExitCode(0);
     expect(Fixtures::calls($this->home))->toContain('flash /dev/x');
 });
+
+it('refuses a chip with less flash than the board', function () {
+    Fixtures::toolchain($this->home, ['chips' => ['/dev/x' => 'demo'], 'flash' => ['/dev/x' => '2MB']]);
+
+    $this->artisan('flash', ['--port' => '/dev/x'])
+        ->expectsOutputToContain("board 'demo-board' needs 4MB of flash, but the chip on /dev/x has 2MB (use --force to flash anyway)")
+        ->assertExitCode(1);
+    expect(Fixtures::calls($this->home))->not->toContain('flash /dev/x');
+});
+
+it('flashes a chip with as much flash as the board or more', function (string $size) {
+    Fixtures::toolchain($this->home, ['chips' => ['/dev/x' => 'demo'], 'flash' => ['/dev/x' => $size]]);
+
+    $this->artisan('flash', ['--port' => '/dev/x'])->assertExitCode(0);
+    expect(Fixtures::calls($this->home))->toContain('flash /dev/x');
+})->with(['4MB', '16MB']);
+
+it('flashes when the flash size is not known', function (?string $size) {
+    Fixtures::toolchain($this->home, ['chips' => ['/dev/x' => 'demo'], 'flash' => ['/dev/x' => $size]]);
+
+    $this->artisan('flash', ['--port' => '/dev/x'])->assertExitCode(0);
+    expect(Fixtures::calls($this->home))->toContain('flash /dev/x');
+})->with([null, 'odd']);
+
+it('flashes a smaller flash anyway with --force', function () {
+    Fixtures::toolchain($this->home, ['chips' => ['/dev/x' => 'demo'], 'flash' => ['/dev/x' => '2MB']]);
+
+    $this->artisan('flash', ['--port' => '/dev/x', '--force' => true])->assertExitCode(0);
+    expect(Fixtures::calls($this->home))->toContain('flash /dev/x');
+});

@@ -31,7 +31,30 @@ it('identifies the chip and lists matching boards', function () {
         ->expectsOutputToContain('chip    Demo demo (revision v1)')
         ->expectsOutputToContain('sdk     demo 1.0.0')
         ->expectsOutputToContain('board   demo-board  Demo board')
+        ->expectsOutputToContain('board   demo-net  Demo net  (needs 8MB of flash)')
+        ->expectsOutputToContain('use     "board": "demo-board" in extra.baremetal')
+        ->assertExitCode(0);
+});
+
+it('asks to pick one when several boards fit the chip', function (?string $flash) {
+    installDemo();
+    Fixtures::toolchain($this->home, ['chips' => ['/dev/x' => 'demo'], 'flash' => ['/dev/x' => $flash]]);
+
+    $this->artisan('discover', ['--port' => '/dev/x'])
         ->expectsOutputToContain('board   demo-net  Demo net')
+        ->doesntExpectOutputToContain('needs 8MB')
+        ->expectsOutputToContain('use     "board": "<id>" in extra.baremetal, with one of the boards above')
+        ->assertExitCode(0);
+})->with(['16MB', null]);
+
+it('says when no board fits the chip flash', function () {
+    installDemo();
+    Fixtures::toolchain($this->home, ['chips' => ['/dev/x' => 'demo'], 'flash' => ['/dev/x' => '2MB']]);
+
+    $this->artisan('discover', ['--port' => '/dev/x'])
+        ->expectsOutputToContain('board   demo-board  Demo board  (needs 4MB of flash)')
+        ->expectsOutputToContain("board   none of these fits the chip's 2MB of flash")
+        ->doesntExpectOutputToContain('use     ')
         ->assertExitCode(0);
 });
 
