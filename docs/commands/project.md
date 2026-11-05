@@ -55,11 +55,17 @@ phpbm init sensor -n --board=waveshare-esp32-s3-eth --runtime=event-driven --sto
 
 ## build
 
-<!-- @method name="phpbm build [--clean]" -->
+<!-- @method name="phpbm build [--clean] [--merged]" -->
 
 Resolves the SDK (writing `phpbm.lock` the first time), checks the project against it, prepares the patched
 PHP sources and builds the firmware into `.phpbm/build`. A second build only rebuilds what changed.
 `--clean` rebuilds from scratch: use it after changing the toolchain or when a build looks stale.
+
+A firmware is several images, each written at its own flash offset; on the ESP32 they are the bootloader, the
+partition table, the app and the storage. `--merged` also writes all of them into one file,
+`.phpbm/build/merged.bin`, with `0xFF` in the gaps. Write that file at offset `0x0`. Use it where only one file
+can be loaded, such as an emulator or a web flasher. The app image alone does not boot from offset `0x0`: the
+ROM fails with `Invalid image block, can't boot`.
 
 The PHP sources are downloaded and patched once per PHP version and SDK version, then shared by every
 project under `~/.phpbm/cache/trees`.

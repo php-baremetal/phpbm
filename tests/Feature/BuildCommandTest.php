@@ -34,6 +34,25 @@ it('builds through the sdk driver', function () {
         ->and(Lock::read($this->project)?->version)->toBe('1.0.0');
 });
 
+it('writes one merged image with --merged', function () {
+    Fixtures::toolchain($this->home);
+    $merged = $this->project . '/.phpbm/build/merged.bin';
+
+    $this->artisan('build --merged')
+        ->expectsOutputToContain("merged image: {$merged} (65544 bytes, write it at offset 0x0)")
+        ->assertExitCode(0);
+
+    expect(file_get_contents($merged))->toBe(str_repeat("\xFF", 0x10000) . "patched\n");
+});
+
+it('writes no merged image without --merged', function () {
+    Fixtures::toolchain($this->home);
+
+    $this->artisan('build')->assertExitCode(0);
+
+    expect(file_exists($this->project . '/.phpbm/build/merged.bin'))->toBeFalse();
+});
+
 it('hands the resolved options to the driver', function () {
     Fixtures::toolchain($this->home);
     Fixtures::project($this->project, ['env' => '.env', 'options' => ['restart-delay' => 30]]);
