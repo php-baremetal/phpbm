@@ -71,10 +71,11 @@ switch ($args[0]) {
 file_put_contents($file, json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . "\n");
 ');
     if (PHP_OS_FAMILY === 'Windows') {
-        // Like Composer's own composer.bat; '%' is doubled so that a path holding one is not expanded.
+        // Like Composer's own composer.bat (delayed expansion off, so a '!' in a path is kept); '%' is doubled so
+        // that a path holding one is not expanded.
         $binary = "{$dir}/fake-composer.bat";
         $quote = static fn (string $path): string => '"' . str_replace('%', '%%', $path) . '"';
-        file_put_contents($binary, '@' . $quote(PHP_BINARY) . ' ' . $quote($script) . " %*\r\n");
+        file_put_contents($binary, "@setlocal DisableDelayedExpansion\r\n@" . $quote(PHP_BINARY) . ' ' . $quote($script) . " %*\r\n");
     } else {
         $binary = "{$dir}/fake-composer";
         file_put_contents($binary, "#!/bin/sh\nexec " . escapeshellarg(PHP_BINARY) . ' ' . escapeshellarg($script) . " \"\$@\"\n");

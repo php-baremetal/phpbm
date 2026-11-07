@@ -48,3 +48,10 @@ it('gives the working directory and canonical paths normalised', function () {
         ->and(Paths::cwd())->toBe(Paths::normalize((string) getcwd()))
         ->and(Paths::cwd())->not->toContain(PHP_OS_FAMILY === 'Windows' ? '\\' : "\0");
 });
+
+it('gives a program path in the Windows form for cmd.exe', function () {
+    expect(Paths::native('C:/Users/u/AppData/Roaming/Composer/composer.bat', 'Windows'))->toBe('C:\\Users\\u\\AppData\\Roaming\\Composer\\composer.bat')
+        ->and(Paths::native('/usr/local/bin/composer', 'Linux'))->toBe('/usr/local/bin/composer')
+        ->and((new App\Support\SymfonyProcess('Windows'))->program(['C:/x/composer.bat', 'a/b']))->toBe(['C:\\x\\composer.bat', 'a/b'])
+        ->and((new App\Support\SymfonyProcess('Linux'))->program(['/x/composer', 'a/b']))->toBe(['/x/composer', 'a/b']);
+});

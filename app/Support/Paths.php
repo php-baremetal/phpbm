@@ -16,6 +16,15 @@ final class Paths
         return ($osFamily ?? PHP_OS_FAMILY) === 'Windows' ? str_replace('\\', '/', $path) : $path;
     }
 
+    /**
+     * On Windows, the path with '\\' in place of '/', for the program of a command line: cmd.exe reads an unquoted
+     * '/' as the start of a switch, so C:/x/composer.bat would not run. Elsewhere unchanged.
+     */
+    public static function native(string $path, ?string $osFamily = null): string
+    {
+        return ($osFamily ?? PHP_OS_FAMILY) === 'Windows' ? str_replace('/', '\\', $path) : $path;
+    }
+
     /** The working directory, normalised. */
     public static function cwd(): string
     {

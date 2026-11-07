@@ -22,6 +22,7 @@ final class SymfonyProcess implements Process
 
     public function run(array $command, ?string $cwd = null, array $env = [], ?Output $out = null): ProcessResult
     {
+        $command = $this->program($command);
         if ($this->windows && $this->bareCommand($command) && $this->find($command[0]) === null) {
             return new ProcessResult(127, '', "{$command[0]}: command not found");
         }
@@ -61,6 +62,7 @@ final class SymfonyProcess implements Process
 
     public function tty(array $command, ?string $cwd = null, array $env = []): int
     {
+        $command = $this->program($command);
         if ($this->windows && $this->bareCommand($command)) {
             $found = $this->find($command[0]);
             if ($found === null) {
@@ -84,6 +86,19 @@ final class SymfonyProcess implements Process
         }
         $code = proc_close($process);
         return $code === -1 ? 127 : $code;
+    }
+
+    /**
+     * The command with its program path in the system's own form (backslashes on Windows, see Paths::native()).
+     * @param list<string> $command
+     * @return list<string>
+     */
+    public function program(array $command): array
+    {
+        if ($command !== [] && $this->windows) {
+            $command[0] = Paths::native($command[0], 'Windows');
+        }
+        return $command;
     }
 
     /** @param list<string> $command */
