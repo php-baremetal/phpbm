@@ -7,7 +7,6 @@ namespace App\Support;
 use App\PhpbmException;
 use PhpBaremetal\Spec\Sdk\Output;
 use PhpBaremetal\Spec\Sdk\Process;
-use Symfony\Component\Process\ExecutableFinder;
 
 /** Runs Composer in a project folder. */
 final class Composer
@@ -20,13 +19,14 @@ final class Composer
     {
         $env = getenv('PHPBM_COMPOSER');
         $name = $binary ?? (is_string($env) && $env !== '' ? $env : 'composer');
-        // A bare name is looked up on the PATH; a value with a directory is used as given.
-        $this->binary = preg_match('#[/\\\\]#', $name) === 1 ? $name : (new ExecutableFinder())->find($name);
+        // A bare name is looked up on the PATH (composer.bat or composer.exe on Windows); a value with a directory
+        // is used as given.
+        $this->binary = preg_match('#[/\\\\]#', $name) === 1 ? $name : Executable::find($name);
     }
 
     public function available(): bool
     {
-        return $this->binary !== null && is_file($this->binary) && is_executable($this->binary);
+        return $this->binary !== null && is_file($this->binary) && Executable::runnable($this->binary);
     }
 
     /**

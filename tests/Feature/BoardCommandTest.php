@@ -70,9 +70,16 @@ switch ($args[0]) {
 }
 file_put_contents($file, json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . "\n");
 ');
-    $binary = "{$dir}/fake-composer";
-    file_put_contents($binary, "#!/bin/sh\nexec " . escapeshellarg(PHP_BINARY) . ' ' . escapeshellarg($script) . " \"\$@\"\n");
-    chmod($binary, 0755);
+    if (PHP_OS_FAMILY === 'Windows') {
+        // Like Composer's own composer.bat; '%' is doubled so that a path holding one is not expanded.
+        $binary = "{$dir}/fake-composer.bat";
+        $quote = static fn (string $path): string => '"' . str_replace('%', '%%', $path) . '"';
+        file_put_contents($binary, '@' . $quote(PHP_BINARY) . ' ' . $quote($script) . " %*\r\n");
+    } else {
+        $binary = "{$dir}/fake-composer";
+        file_put_contents($binary, "#!/bin/sh\nexec " . escapeshellarg(PHP_BINARY) . ' ' . escapeshellarg($script) . " \"\$@\"\n");
+        chmod($binary, 0755);
+    }
     app()->instance(Composer::class, new Composer(new SymfonyProcess(), $binary));
     return $log;
 }

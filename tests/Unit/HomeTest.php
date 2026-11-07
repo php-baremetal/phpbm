@@ -10,7 +10,7 @@ it('prefers PHPBM_HOME', function () {
 });
 
 it('resolves a relative PHPBM_HOME against the working directory', function () {
-    expect(Home::fromEnvironment(['PHPBM_HOME' => 'rel'])->root)->toBe(getcwd() . '/rel');
+    expect(Home::fromEnvironment(['PHPBM_HOME' => 'rel'])->root)->toBe(App\Support\Paths::normalize((string) getcwd()) . '/rel');
 });
 
 it('uses HOME on unix', function () {
@@ -18,11 +18,19 @@ it('uses HOME on unix', function () {
 });
 
 it('uses USERPROFILE on windows', function () {
-    expect(Home::fromEnvironment(['USERPROFILE' => 'C:\\Users\\u\\'])->root)->toBe('C:\\Users\\u/.phpbm');
+    expect(Home::fromEnvironment(['USERPROFILE' => 'C:\\Users\\u\\'], 'Windows')->root)->toBe('C:/Users/u/.phpbm');
 });
 
 it('falls back to HOMEDRIVE and HOMEPATH', function () {
-    expect(Home::fromEnvironment(['HOMEDRIVE' => 'C:', 'HOMEPATH' => '\\Users\\u'])->root)->toBe('C:\\Users\\u/.phpbm');
+    expect(Home::fromEnvironment(['HOMEDRIVE' => 'C:', 'HOMEPATH' => '\\Users\\u'], 'Windows')->root)->toBe('C:/Users/u/.phpbm');
+});
+
+it('normalises a Windows PHPBM_HOME', function () {
+    expect(Home::fromEnvironment(['PHPBM_HOME' => 'D:\\phpbm\\'], 'Windows')->root)->toBe('D:/phpbm');
+});
+
+it('keeps backslashes in a unix home, where they are file name characters', function () {
+    expect(Home::fromEnvironment(['HOME' => '/home/a\\b'], 'Linux')->root)->toBe('/home/a\\b/.phpbm');
 });
 
 it('explains when nothing is set', function () {

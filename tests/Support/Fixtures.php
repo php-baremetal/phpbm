@@ -6,6 +6,7 @@ namespace Tests\Support;
 
 use App\Sdk\SdkIndex;
 use App\Support\Home;
+use App\Support\Paths;
 use App\Support\SymfonyProcess;
 use PhpBaremetal\Spec\Manifest\Manifest;
 use PhpBaremetal\Spec\Manifest\Package;
@@ -17,16 +18,17 @@ final class Fixtures
     /** @var list<string> */
     private static array $dirs = [];
 
+    /** A new empty directory, as phpbm writes paths: canonical, with '/' as the separator on Windows too. */
     public static function tempDir(): string
     {
         $dir = sys_get_temp_dir() . '/phpbm-test-' . bin2hex(random_bytes(4));
         mkdir($dir, 0777, true);
-        return self::$dirs[] = realpath($dir);
+        return self::$dirs[] = Paths::real($dir);
     }
 
     public static function cleanup(): void
     {
-        $tmp = realpath(sys_get_temp_dir());
+        $tmp = Paths::real(sys_get_temp_dir());
         foreach (self::$dirs as $dir) {
             if (dirname($dir) === $tmp && str_starts_with(basename($dir), 'phpbm-test-')) {
                 (new \Illuminate\Filesystem\Filesystem())->deleteDirectory($dir);

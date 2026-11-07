@@ -84,8 +84,12 @@ it('runs in the project folder', function () {
 
 it('resolves a bare name on the PATH', function () {
     $dir = Fixtures::tempDir();
-    file_put_contents($dir . '/phpbm-fake-composer', "#!/bin/sh\n");
-    chmod($dir . '/phpbm-fake-composer', 0755);
+    if (PHP_OS_FAMILY === 'Windows') {
+        file_put_contents($dir . '/phpbm-fake-composer.bat', "@exit /b 0\r\n");
+    } else {
+        file_put_contents($dir . '/phpbm-fake-composer', "#!/bin/sh\n");
+        chmod($dir . '/phpbm-fake-composer', 0755);
+    }
     $oldPath = getenv('PATH');
     $oldEnv = getenv('PHPBM_COMPOSER');
     putenv('PATH=' . $dir . PATH_SEPARATOR . $oldPath);
@@ -106,3 +110,31 @@ it('is unavailable for a non-executable path', function () {
     chmod($dir . '/composer', 0644);
     expect((new Composer(new FakeProcess(), $dir . '/composer'))->available())->toBeFalse();
 });
+
+it('finds a bare name with its PATHEXT extension on Windows and never an extensionless file', function () {
+    $first = Fixtures::tempDir();
+    $second = Fixtures::tempDir();
+    file_put_contents($first . '/composer', "#!/bin/sh\n");
+    file_put_contents($second . '/composer.bat', "@exit /b 0\r\n");
+    file_put_contents($second . '/tool.cmd', "@exit /b 0\r\n");
+    $env = ['PATH' => str_replace('/', '\\', $first) . '\;"' . $second . '";', 'PATHEXT' => '.COM;.EXE;.BAT;.CMD'];
+
+    expect(App\Support\Executable::find('composer', 'Windows', $env))->toBe($second . '/composer.bat')
+        ->and(App\Support\Executable::find('composer.bat', 'Windows', $env))->toBe($second . '/composer.bat')
+        ->and(App\Support\Executable::find('tool', 'Windows', $env))->toBe($second . '/tool.cmd')
+        ->and(App\Support\Executable::find('composer', 'Windows', ['PATH' => $first]))->toBeNull()
+        ->and(App\Support\Executable::runnable($second . '/composer.bat', 'Windows', $env))->toBeTrue()
+        ->and(App\Support\Executable::runnable($first . '/composer', 'Windows', $env))->toBeFalse()
+        ->and(App\Support\Executable::runnable('C:/x/php.EXE', 'Windows', []))->toBeTrue();
+});
+
+it('finds a bare name only when it is executable elsewhere', function () {
+    $dir = Fixtures::tempDir();
+    file_put_contents($dir . '/plain', 'x');
+    file_put_contents($dir . '/tool', "#!/bin/sh\n");
+    chmod($dir . '/tool', 0755);
+
+    expect(App\Support\Executable::find('tool', 'Linux', ['PATH' => '/nonexistent:' . $dir]))->toBe($dir . '/tool')
+        ->and(App\Support\Executable::find('plain', 'Linux', ['PATH' => $dir]))->toBeNull()
+        ->and(App\Support\Executable::find('tool.bat', 'Linux', ['PATH' => $dir]))->toBeNull();
+})->skip(PHP_OS_FAMILY === 'Windows', 'needs the executable bit of a POSIX file system');

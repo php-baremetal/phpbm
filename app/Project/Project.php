@@ -17,7 +17,7 @@ final readonly class Project
 
     public static function load(string $dir, ?ConductorCheck $conductor = null): self
     {
-        $dir = realpath($dir) ?: $dir;
+        $dir = Paths::real($dir) ?? Paths::normalize($dir);
         if (!is_file("{$dir}/composer.json")) {
             throw new PhpbmException("{$dir} is not a phpbm project (no composer.json)");
         }

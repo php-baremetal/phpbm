@@ -12,18 +12,21 @@ final readonly class Home
     {
     }
 
-    /** @param array<string,string>|null $env */
-    public static function fromEnvironment(?array $env = null): self
+    /**
+     * @param array<string,string>|null $env
+     * @param string|null $osFamily PHP_OS_FAMILY by default; on Windows the root is normalised (see Paths)
+     */
+    public static function fromEnvironment(?array $env = null, ?string $osFamily = null): self
     {
         $env ??= getenv();
         $value = static fn (string $name): string => is_string($env[$name] ?? null) ? $env[$name] : '';
 
         if ($value('PHPBM_HOME') !== '') {
-            return new self(rtrim(Paths::resolve((string) getcwd(), $value('PHPBM_HOME')), '/\\'));
+            return new self(rtrim(Paths::normalize(Paths::resolve(Paths::cwd(), $value('PHPBM_HOME')), $osFamily), '/\\'));
         }
         foreach ([$value('HOME'), $value('USERPROFILE'), $value('HOMEDRIVE') . $value('HOMEPATH')] as $home) {
             if ($home !== '') {
-                return new self(rtrim($home, '/\\') . '/.phpbm');
+                return new self(Paths::normalize(rtrim($home, '/\\'), $osFamily) . '/.phpbm');
             }
         }
         throw new PhpbmException('cannot locate the home directory: set PHPBM_HOME');

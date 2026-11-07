@@ -18,9 +18,10 @@ it('downloads and verifies', function () {
 });
 
 it('accepts file urls', function () {
-    (new Downloader())->fetch('file://' . $this->dir . '/src.bin', $this->sha, $this->dir . '/b.bin');
+    // file:///home/u/x on unix, file:///C:/Users/u/x on Windows (the test directory has '/' separators there too).
+    (new Downloader())->fetch('file://' . (str_starts_with($this->dir, '/') ? '' : '/') . $this->dir . '/src.bin', $this->sha, $this->dir . '/b.bin');
     expect(is_file($this->dir . '/b.bin'))->toBeTrue();
-})->skipOnWindows();
+});
 
 it('reuses a target that already has the right checksum', function () {
     (new Downloader())->fetch($this->dir . '/src.bin', $this->sha, $this->dir . '/c.bin');

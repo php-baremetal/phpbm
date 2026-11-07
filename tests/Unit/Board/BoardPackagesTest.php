@@ -293,7 +293,7 @@ header("Content-Type: application/json"); readfile($file); return true;');
     $name = (string) stream_socket_get_name($socket, false);
     $port = (int) substr($name, strrpos($name, ':') + 1);
     fclose($socket);
-    $server = proc_open([PHP_BINARY, '-S', "127.0.0.1:{$port}", '-t', $root, $root . '/router.php'], [1 => ['file', '/dev/null', 'w'], 2 => ['file', '/dev/null', 'w']], $pipes);
+    $server = proc_open([PHP_BINARY, '-S', "127.0.0.1:{$port}", '-t', $root, $root . '/router.php'], [1 => ['file', $null = PHP_OS_FAMILY === 'Windows' ? 'NUL' : '/dev/null', 'w'], 2 => ['file', $null, 'w']], $pipes);
     try {
         for ($i = 0; $i < 50 && @fsockopen('127.0.0.1', $port) === false; $i++) {
             usleep(100_000);

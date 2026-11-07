@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.1.1
+
+- Fixed: on Windows, phpbm init and phpbm board accept Composer installed as composer.bat (as the Windows installer sets it up): a command on the PATH is looked up with the PATHEXT extensions and judged runnable by its extension, where PHP's is_executable() only accepts binaries.
+- Fixed: on Windows, paths are printed and handed to the SDK with '/' only (no more `C:\Users\u\proj/.phpbm/build`), so font paths match the project directory.
+- Fixed: phpbm font:bake accepts an absolute --out on Windows (C:\fonts, C:/fonts), which it used to put inside the working directory.
+
 ## 0.1.0
 
 - Added: options declared by installed native packages are accepted in extra.baremetal.options and resolved with their defaults.

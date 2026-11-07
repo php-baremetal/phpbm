@@ -6,6 +6,7 @@ namespace App\Commands;
 
 use App\Fonts\FontBaker;
 use App\PhpbmException;
+use App\Support\Paths;
 use PhpBaremetal\Spec\Manifest\Manifest;
 
 final class FontBakeCommand extends PhpbmCommand
@@ -63,14 +64,17 @@ final class FontBakeCommand extends PhpbmCommand
 
     private function outDir(): string
     {
-        $cwd = (string) getcwd();
+        $cwd = Paths::cwd();
         $dir = $this->option('out');
         if ($dir === null || $dir === '') {
             $manifest = $cwd . '/' . Manifest::PATH;
             $dir = is_file($manifest) ? Manifest::fromFile($manifest)->project->fonts->dir : self::DEFAULT_DIR;
         }
-        if (str_starts_with($dir, '/')) {
-            return rtrim($dir, '/') ?: '/';
+        $dir = Paths::normalize($dir);
+        if (Paths::isAbsolute($dir)) {
+            $trimmed = rtrim($dir, '/');
+            // Keep the root itself: '/' and 'C:/' (a bare 'C:' would mean the working directory of drive C).
+            return $trimmed === '' || preg_match('/^[A-Za-z]:$/D', $trimmed) === 1 ? $trimmed . '/' : $trimmed;
         }
         $dir = trim(preg_replace('#^(\./)+|/\.$#', '', rtrim($dir, '/')), '/');
         return $dir === '' || $dir === '.' ? $cwd : "{$cwd}/{$dir}";

@@ -91,7 +91,7 @@ final class InitCommand extends PhpbmCommand
         }
 
         $this->line('next:');
-        if ($dir !== getcwd()) {
+        if ($dir !== Paths::cwd()) {
             $this->line("  cd {$dir}");
         }
         if ($showCommands) {
@@ -144,8 +144,9 @@ final class InitCommand extends PhpbmCommand
 
     private function targetDir(): string
     {
-        $dir = (string) ($this->argument('dir') ?? getcwd());
-        return rtrim(Paths::resolve((string) getcwd(), $dir), '/\\');
+        $cwd = Paths::cwd();
+        $dir = (string) ($this->argument('dir') ?? $cwd);
+        return rtrim(Paths::normalize(Paths::resolve($cwd, $dir)), '/\\');
     }
 
     private function chooseSdk(): Sdk

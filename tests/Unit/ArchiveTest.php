@@ -56,7 +56,7 @@ it('extracts a zip archive', function () {
 
     $root = (new Archive(new SymfonyProcess()))->extract($dir . '/pkg.zip', $dir . '/out');
     expect(file_get_contents($root . '/f.txt'))->toBe('z');
-})->skip(!class_exists(ZipArchive::class) || trim((string) shell_exec('command -v unzip')) === '', 'needs ext-zip and unzip');
+})->skip(!class_exists(ZipArchive::class), 'needs ext-zip');
 
 it('extracts zips with the zip extension even without unzip on the path', function () {
     $dir = Fixtures::tempDir();

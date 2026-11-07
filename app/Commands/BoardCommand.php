@@ -13,6 +13,7 @@ use App\PhpbmException;
 use App\Project\BoardFit;
 use App\Sdk\SdkResolver;
 use App\Support\Composer;
+use App\Support\Paths;
 use PhpBaremetal\Spec\Manifest\SdkRequirement;
 use PhpBaremetal\Spec\Sdk\Descriptor\Board;
 use PhpBaremetal\Spec\Sdk\Sdk;
@@ -38,7 +39,7 @@ final class BoardCommand extends PhpbmCommand
 
     protected function perform(): int
     {
-        $dir = rtrim((string) (realpath((string) getcwd()) ?: getcwd()), '/\\');
+        $dir = rtrim(Paths::real(Paths::cwd()) ?? Paths::cwd(), '/\\');
         $file = "{$dir}/composer.json";
         if (!is_file($file)) {
             throw new PhpbmException("no composer.json in {$dir}: run phpbm init");
