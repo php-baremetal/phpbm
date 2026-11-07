@@ -34,6 +34,20 @@ it('builds through the sdk driver', function () {
         ->and(Lock::read($this->project)?->version)->toBe('1.0.0');
 });
 
+it('hands the fonts to the sdk driver', function () {
+    Fixtures::toolchain($this->home);
+    $dejavu = new \PhpBaremetal\Spec\Manifest\Package('php-baremetal/ext-display', 'bm-lib', '1.0.0', 'pkgs/display', ['fonts' => ['default' => 'fonts/default.h']]);
+    @mkdir($this->project . '/pkgs/display/fonts', 0777, true);
+    file_put_contents($this->project . '/pkgs/display/fonts/default.h', 'x');
+    @mkdir($this->project . '/project-fonts');
+    file_put_contents($this->project . '/project-fonts/a.h', 'x');
+    Fixtures::project($this->project, ['env' => '.env'], [$dejavu]);
+
+    $this->artisan('build')->assertExitCode(0);
+
+    expect(Fixtures::calls($this->home))->toBe(['build demo-board 8.4.25 loop {"SSID":"home"} {"on-error":"stop","restart-delay":5} fonts a,default']);
+});
+
 it('writes one merged image with --merged', function () {
     Fixtures::toolchain($this->home);
     $merged = $this->project . '/.phpbm/build/merged.bin';

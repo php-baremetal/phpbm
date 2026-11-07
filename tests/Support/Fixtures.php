@@ -69,9 +69,11 @@ final class Fixtures
             'chips/demo/chip.json' => '{"name":"Demo","target":"demo","capabilities":{"microsd":["spi"],"network":["wifi"]},"psram":["quad"]}',
             'boards/demo-board.json' => '{"name":"Demo board","chip":"demo","flash":"4MB","microsd":{"type":"spi","cs":1,"sclk":2,"mosi":3,"miso":4}}',
             'boards/demo-net.json' => '{"name":"Demo net","chip":"demo","flash":"8MB","network":{"type":"wifi"}}',
+            'boards/demo-screen.json' => '{"name":"Demo screen","chip":"demo","flash":"16MB","display":{"type":"st77916"},"led":{"type":"ws2812"},"i2c":{"type":"i2c"},"network":{"type":"wifi"}}',
             'runtimes/loop/runtime.json' => '{"description":"Runs a loop","options":{"restart-delay":{"description":"Seconds before a restart","type":"int","min":0,"max":3600,"default":5}}}',
             'runtimes/server/runtime.json' => '{"description":"HTTP server","options":{"retries":{"description":"Retries","type":"int","min":0,"max":9,"default":3}},"requires":{"capabilities":["network"],"packages":["php-baremetal/ext-web"]}}',
             'runtimes/xclash/runtime.json' => '{"description":"Clashes with the sdk","options":{"on-error":{"description":"Again","values":["stop","continue"],"default":"stop"}}}',
+            'runtimes/xdup/runtime.json' => '{"description":"Needs packages, one a board feature brings too","requires":{"packages":["php-baremetal/led-ws2812","php-baremetal/ext-web"]}}',
             'runtimes/xnamed/runtime.json' => '{"description":"Has a string option","options":{"label":{"description":"A label","type":"string","pattern":"#^[a-z]*$#D","default":"x"}}}',
             'storages/embedded/storage.json' => '{"description":"Sources in flash"}',
             'storages/microsd/storage.json' => '{"description":"Sources on the card","options":{"retries":{"description":"Retries","type":"int","min":0,"max":9,"default":1}},"requires":{"capabilities":["microsd"]}}',
@@ -110,6 +112,19 @@ final class Fixtures
         $path = "{$dir}/index.json";
         file_put_contents($path, json_encode(['name' => 'demo', 'versions' => $versions], JSON_PRETTY_PRINT));
         return $path;
+    }
+
+    /** A Composer v2 registry that can be read, whose packages declare no board-blocks. */
+    public static function registryWithoutBlocks(): string
+    {
+        $dir = self::tempDir();
+        mkdir("{$dir}/p2/php-baremetal", 0777, true);
+        file_put_contents("{$dir}/packages.json", '{"metadata-url": "p2/%package%.json", "list": "list.json"}');
+        file_put_contents("{$dir}/list.json", '{"packageNames": ["php-baremetal/ext-i2c"]}');
+        file_put_contents("{$dir}/p2/php-baremetal/ext-i2c.json", json_encode(['minified' => 'composer/2.0', 'packages' => [
+            'php-baremetal/ext-i2c' => [['name' => 'php-baremetal/ext-i2c', 'version' => '1.0.2', 'type' => 'library']],
+        ]]));
+        return $dir;
     }
 
     /** @param list<string> $versions */
@@ -202,7 +217,8 @@ final class Driver implements \PhpBaremetal\Spec\Sdk\Driver
     public function build(BuildPlan $plan, Output $out): Artifacts
     {
         $this->log(sprintf('build %s %s %s %s %s', $plan->board->id, $plan->php->version, $plan->runtime->id, json_encode($plan->env), json_encode($plan->options))
-            . ($plan->phpExtensions === [] ? '' : ' php-ext ' . implode(',', array_map(fn ($e) => $e->name, $plan->phpExtensions))));
+            . ($plan->phpExtensions === [] ? '' : ' php-ext ' . implode(',', array_map(fn ($e) => $e->name, $plan->phpExtensions)))
+            . ($plan->fonts === [] ? '' : ' fonts ' . implode(',', array_keys($plan->fonts))));
         @mkdir($plan->buildDir, 0777, true);
         copy($plan->phpSourceDir . '/main/php.h', $plan->buildDir . '/app.bin');
         $out->step('demo build');

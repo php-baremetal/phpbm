@@ -54,10 +54,18 @@ final class ProjectValidator
         foreach ($extensions as $extension) {
             $sources["php extension '{$extension->name}'"] = $extension->options;
         }
+        foreach ($project->manifest->packages as $package) {
+            try {
+                $sources[$package->name] = $package->options();
+            } catch (SpecException $e) {
+                $problems[] = $e->getMessage();
+            }
+        }
         foreach ($sources as $owner => $options) {
             foreach ($options as $name => $option) {
                 if (isset($declared[$name])) {
-                    $problems[] = "option '{$name}' is declared by both {$owners[$name]} and {$owner}: this is an sdk bug";
+                    $problems[] = "option '{$name}' is declared by both {$owners[$name]} and {$owner}"
+                        . ($this->isPackage($project, $owner) ? '' : ': this is an sdk bug');
                     continue;
                 }
                 $declared[$name] = $option;
@@ -93,6 +101,16 @@ final class ProjectValidator
         }
 
         return new Target($target->board, $target->chip, $target->runtime, $target->storage, $target->php, $options, $extensions);
+    }
+
+    private function isPackage(Project $project, string $owner): bool
+    {
+        foreach ($project->manifest->packages as $package) {
+            if ($package->name === $owner) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**

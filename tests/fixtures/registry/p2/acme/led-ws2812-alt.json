@@ -1,0 +1,3 @@
+{"minified": "composer/2.0", "packages": {"acme/led-ws2812-alt": [
+ {"name": "acme/led-ws2812-alt", "version": "2.0.0", "extra": {"baremetal": {"board-blocks": ["led:ws2812"]}}}
+]}}

@@ -20,6 +20,7 @@ final readonly class Builder
         private ProjectValidator $validator,
         private SourceTree $sources,
         private DriverFactory $drivers,
+        private FontResolver $fonts,
     ) {
     }
 
@@ -48,6 +49,8 @@ final readonly class Builder
             ));
         }
 
+        $fonts = $this->fonts->resolve($project, $out);
+
         $plan = new BuildPlan(
             $project->dir,
             $project->manifest,
@@ -64,6 +67,7 @@ final readonly class Builder
             $clean,
             $target->options,
             $target->phpExtensions,
+            fonts: $fonts,
         );
 
         return new Target($driver, $plan);
@@ -93,6 +97,7 @@ final readonly class Builder
             $plan->clean,
             $plan->options,
             $plan->phpExtensions,
+            fonts: $plan->fonts,
         );
     }
 }

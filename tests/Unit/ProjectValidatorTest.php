@@ -135,3 +135,43 @@ it('reports an extension option that collides with another option', function () 
     expect(fn () => validateDemoProject([], [phpExt('php-baremetal/php-xclash', 'xclash')]))
         ->toThrow(PhpbmException::class, "option 'restart-delay' is declared by both runtime 'loop' and php extension 'xclash': this is an sdk bug");
 });
+
+function demoSizePackage(array $options = []): Package
+{
+    return new Package('php-baremetal/ext-demo', 'bm-ext', '1.0.0', 'p', [
+        'module' => 'demo',
+        'options' => $options ?: ['demo-size' => ['type' => 'int', 'min' => 1, 'max' => 100, 'default' => 4, 'description' => 'Size of the demo buffer.']],
+    ]);
+}
+
+it('resolves the default of an option declared by a package', function () {
+    expect(validateDemoProject([], [demoSizePackage()])->options)->toBe(['demo-size' => 4, 'on-error' => 'stop', 'restart-delay' => 5]);
+});
+
+it('lets the project set an option declared by a package', function () {
+    expect(validateDemoProject(['options' => ['demo-size' => 50]], [demoSizePackage()])->options['demo-size'])->toBe(50);
+});
+
+it('rejects an out-of-range value for a package option', function () {
+    expect(fn () => validateDemoProject(['options' => ['demo-size' => 500]], [demoSizePackage()]))
+        ->toThrow(PhpbmException::class, 'extra.baremetal.options.demo-size: must be an integer between 1 and 100, got 500');
+});
+
+it('lists the package options among the accepted ones', function () {
+    expect(fn () => validateDemoProject(['options' => ['nope' => 1]], [demoSizePackage()]))
+        ->toThrow(PhpbmException::class, "unknown option 'nope' in extra.baremetal.options (accepted: demo-size, on-error, restart-delay)");
+});
+
+it('reports an option declared by both the sdk and a package', function () {
+    $clash = new Package('php-baremetal/ext-demo', 'bm-ext', '1.0.0', 'p', [
+        'module' => 'on',
+        'options' => ['on-error' => ['type' => 'int', 'default' => 1, 'description' => 'Clash.']],
+    ]);
+    expect(fn () => validateDemoProject([], [$clash]))
+        ->toThrow(PhpbmException::class, "option 'on-error' is declared by both sdk and php-baremetal/ext-demo");
+});
+
+it('reports an invalid option definition of a package', function () {
+    $bad = demoSizePackage(['demo-size' => ['type' => 'nope']]);
+    expect(fn () => validateDemoProject([], [$bad]))->toThrow(PhpbmException::class, 'php-baremetal/ext-demo');
+});

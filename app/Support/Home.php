@@ -44,9 +44,19 @@ final readonly class Home
         return $this->root . '/cache';
     }
 
+    public function boardPackages(): string
+    {
+        return $this->cache() . '/board-packages.json';
+    }
+
     public function downloads(): string
     {
         return $this->cache() . '/downloads';
+    }
+
+    public function fonts(): string
+    {
+        return $this->cache() . '/fonts';
     }
 
     public function trees(): string

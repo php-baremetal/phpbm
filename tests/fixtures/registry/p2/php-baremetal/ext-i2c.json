@@ -1,0 +1,4 @@
+{"minified": "composer/2.0", "packages": {"php-baremetal/ext-i2c": [
+ {"name": "php-baremetal/ext-i2c", "version": "1.0.2", "type": "library"},
+ {"version": "1.0.1"}
+]}}

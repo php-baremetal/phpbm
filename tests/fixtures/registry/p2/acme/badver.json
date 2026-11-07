@@ -1,0 +1,1 @@
+{"minified":"composer/2.0","packages":{"acme/badver":[{"name":"acme/badver","version":"not a version!!","extra":{"baremetal":{"board-blocks":["sensor:bad"]}}},{"version":"1.0.0","extra":{"baremetal":{"board-blocks":["sensor:good"]}}}]}}

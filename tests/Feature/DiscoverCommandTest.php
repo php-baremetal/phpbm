@@ -32,6 +32,7 @@ it('identifies the chip and lists matching boards', function () {
         ->expectsOutputToContain('sdk     demo 1.0.0')
         ->expectsOutputToContain('board   demo-board  Demo board')
         ->expectsOutputToContain('board   demo-net  Demo net  (needs 8MB of flash)')
+        ->expectsOutputToContain('board   demo-screen  Demo screen  (needs 16MB of flash)')
         ->expectsOutputToContain('use     "board": "demo-board" in extra.baremetal')
         ->assertExitCode(0);
 });

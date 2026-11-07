@@ -1,6 +1,6 @@
 ---
 eyebrow: 'phpbm · Commands'
-lede:    'The commands that work on a project: create it, build it, put it on the board and talk to it. All but init and discover run in the project directory.'
+lede:    'The commands that work on a project: create it, build it, put it on the board and talk to it. All but init, discover and font:bake run in the project directory.'
 see_also:
   - { href: './sdk.md', meta: 'Commands' }
   - { href: '../guide/project.md', meta: 'Guide' }
@@ -17,7 +17,7 @@ choice for anything you did not pass, and a choice between several serial ports 
 
 ## init
 
-<!-- @method name="phpbm init [dir] [--name=] [--sdk=] [--board=] [--runtime=] [--storage=]" -->
+<!-- @method name="phpbm init [dir] [--name=] [--sdk=] [--board=] [--runtime=] [--storage=] [--features=] [--no-install]" -->
 
 Creates a project in `dir` (default: the current directory), which must not already hold a `composer.json`.
 
@@ -40,18 +40,120 @@ A runtime the board can run; an explicit one it cannot run is an error.
 <!-- @param name="--storage" type="string" -->
 A storage the board has (`microsd` needs a card slot).
 <!-- @endparam -->
+<!-- @param name="--features" type="string" -->
+Which of the board's features to install: `all`, `none` or kinds separated by commas (`display,i2c`). Without it
+phpbm shows the features as checkboxes, all checked; with `-n` the default is `all`. A kind the board does not
+have is an error that lists the kinds the board has; a kind with no package is skipped with a `no package` note. When the package list cannot be read (offline, no cache) phpbm warns `cannot check --features: the list of board packages is not available` and installs no feature. When the registry is read but no package drives the board's blocks, the kinds are checked as usual and each one gets its `no package` note.
+<!-- @endparam -->
+<!-- @param name="--no-install" type="flag" -->
+Does not run Composer: phpbm prints the `composer require` and `composer install` commands instead.
+<!-- @endparam -->
 <!-- @endparams -->
+
+After the board, phpbm offers its features (display, LED, I2C bus...) as checkboxes, each with the package that
+drives it, found in the package registry. A feature with no package is listed as `no package` and cannot be
+checked. A package drives a block when its `composer.json` lists it in `extra.baremetal.board-blocks` as
+`<kind>:<type>` (`led:ws2812`): the kind is the block name up to the first `-` (`[a-z0-9]+`, so `led-2` is kind
+`led`), the type the block's type (`[a-z0-9][a-z0-9-]*`). phpbm prints `reading board packages from <registry>…`
+when it reads the registry (HTTP reads time out after 10 seconds); a package whose metadata is missing (HTTP 404) is
+skipped with `skipping <package>: no metadata (404)`. The registry answer is cached for an hour in
+`~/.phpbm/cache`; offline phpbm uses the cache, or, with none, warns that board features are not offered and goes
+on with no feature (once you are online, run `phpbm board --features=all` in the project to add them).
 
 It writes `composer.json` (registry, conductor, `config.platform.php` set to the newest PHP the SDK builds,
 `extra.baremetal`, the SDK constraint as `^major.minor` of the installed version), `project-src/index.php`
-when missing, and adds `/vendor/` and `/.phpbm/` to `.gitignore`. Then it prints the next commands and warns
-when the conductor is not installed or allowed globally.
+when missing, and adds `/vendor/` and `/.phpbm/` to `.gitignore`. It warns when the conductor is not installed
+or allowed globally.
+
+Then it runs `composer require` once in the project, with the packages of the chosen features and those the
+runtime and storage need (`composer install` when there are none). Composer is `PHPBM_COMPOSER` or `composer` on
+the `PATH`. If Composer is missing (`composer not found: set PHPBM_COMPOSER, install Composer, or use --no-install`) or
+fails (`composer <args> failed (exit <code>)`, followed by Composer's error message when it printed one), the files
+stay, phpbm prints the error and the commands to run by hand, and exits with 1. Otherwise it prints `phpbm build` as the next step.
 
 <!-- @code-block language="Bash" label="non-interactive" -->
 ```bash
 phpbm init sensor -n --board=waveshare-esp32-s3-eth --runtime=event-driven --storage=embedded
 ```
 <!-- @endcode-block -->
+
+## board
+
+<!-- @method name="phpbm board [board] [--change] [--features=…] [--no-install] [--refresh]" -->
+
+Adds or removes the features of the project's board, or changes the board and offers the new board's features.
+It runs in the project directory and reads `composer.json` directly, so it also works right after
+`phpbm init --no-install`. The SDK is resolved as the build does (`phpbm.lock`, or the `sdk` constraint).
+
+<!-- @params heading="Arguments and options" -->
+<!-- @param name="board" type="string" -->
+The new board id. Without it, or with the current board, phpbm works on the features of the current board.
+<!-- @endparam -->
+<!-- @param name="--change" type="flag" -->
+Choose the new board from the list of the SDK's boards (needs a terminal).
+<!-- @endparam -->
+<!-- @param name="--features" type="string" -->
+The features to have after the command: `all`, `none` or kinds separated by commas (`display,i2c`). It replaces
+the checkboxes. A kind the board does not have is an error that lists the kinds the board has.
+<!-- @endparam -->
+<!-- @param name="--no-install" type="flag" -->
+Does not run Composer: phpbm changes `extra.baremetal.board` (and drops the overrides, the whole key when none is
+left) in `composer.json` itself, keeping every other key, and prints the `composer remove` and `composer require` commands to run.
+<!-- @endparam -->
+<!-- @param name="--refresh" type="flag" -->
+Reads the list of board packages from the registry again instead of the one-hour cache.
+<!-- @endparam -->
+<!-- @endparams -->
+
+Without `board`, phpbm shows the board's features as checkboxes, like `init`. A feature is checked when one of
+its packages is in the direct `require` of `composer.json`. Unchecking a feature runs `composer remove` of its
+installed package, when no other checked feature uses it; checking one runs `composer require` of its package.
+Packages that are not features of the board are never touched. With `-n` and no `--features` the installed
+features stay as they are. When nothing changes, phpbm prints `nothing to change` and does not run Composer.
+
+<!-- @code-block language="Bash" label="the features of the current board" -->
+```bash
+phpbm board                     # check or uncheck the features
+phpbm board -n --features=led   # keep only the LED: remove the other feature packages, require the LED's
+```
+<!-- @endcode-block -->
+
+With `board` (or `--change`), phpbm first checks that the board exists in the project's SDK and that the
+project's runtime and storage fit it, before it changes anything. Then it offers the features of the new board,
+all checked, and lists the installed feature packages the new board does not use, checked for removal. Overrides
+in `extra.baremetal.board-overrides` of blocks the new board does not have are listed too: phpbm asks to remove
+them, because the build would fail with them (with `-n` it removes them). Then it runs, in this order:
+
+1. `composer config extra.baremetal.board <id>`;
+2. when overrides are removed, `composer config --json extra.baremetal.board-overrides '<the overrides left>'`, or
+   `composer config --unset extra.baremetal.board-overrides` when none is left (Composer's `config` cannot reach
+   one block inside `board-overrides`);
+3. `composer remove …` of the packages to remove;
+4. `composer require …` of the packages to add.
+
+It ends with `board: <id>`. When no package changed, it also prints `composer update --lock`, which refreshes the
+lock hash and the manifest after the change of `extra`. The project's PHP code does not change: an `onboard()`
+of a block the new board does not have fails.
+
+<!-- @code-block language="Bash" label="change the board" -->
+```bash
+phpbm board waveshare-esp32-s3-touch-lcd-1.85b   # or: phpbm board --change
+```
+<!-- @endcode-block -->
+
+Composer is `PHPBM_COMPOSER` or `composer` on the `PATH`, run in the project directory; without it, phpbm asks for
+Composer or `--no-install`.
+
+| Message | When |
+| --- | --- |
+| `no composer.json in <dir>: run phpbm init` | outside a project |
+| `board '<id>' does not exist in sdk <name> <version>` | an unknown board |
+| `storage '<s>' needs <capability>, but board '<id>' has none` (and the same for the runtime) | a board the runtime or the storage does not fit; `composer.json` is not changed |
+| `composer <args> failed (exit <code>)[: <Composer's message>]; done so far: <steps>` | a Composer step fails; the steps already done stay, exit code 1 |
+| `composer not found: set PHPBM_COMPOSER, install Composer, or use --no-install` | Composer is missing |
+| `the build fails with overrides of blocks board '<id>' does not have (<blocks>): …` | you answered no to removing the overrides; nothing is changed |
+| `--change asks for the board: pass the board id instead (phpbm board <id>)` | `--change` without a terminal (`-n`) |
+| `the list of board packages is not available: …` | without a board, when the registry cannot be reached and there is no cache (a registry that is read but has no board packages gives `nothing to change` instead) |
 
 ## build
 
@@ -140,3 +242,56 @@ port a board is on. It works outside a project.
   use     "board": "<id>" in extra.baremetal, with one of the boards above
 ```
 <!-- @endcode-block -->
+
+## font:bake
+
+<!-- @method name="phpbm font:bake <source> --name= [--size=] [--bpp=1|2|4] [--chars=|--range=] [--out=]" -->
+
+Turns a font file into a C header that `php-baremetal/ext-display` draws with: the Adafruit GFX format, extended
+with several codepoint ranges and 2 or 4 bits per pixel for anti-aliasing. It writes `<name>.h` and prints the
+glyph count and the bitmap size. The same inputs always give the same bytes. It works outside a project too.
+
+Supported sources:
+
+- TTF with TrueType outlines (quadratic curves), rasterized at `--size` pixels without hinting;
+- BDF bitmap fonts, read as they are: `--size` is ignored, and at 2 or 4 bpp a lit pixel is fully lit.
+
+An OpenType font with CFF outlines (`.otf`, usually) stops with
+`font '<name>': CFF outlines (OTF) are not supported, use a TTF or BDF`; convert it to TrueType outlines first.
+
+<!-- @params heading="Arguments and options" -->
+<!-- @param name="source" type="path" -->
+The TTF or BDF file.
+<!-- @endparam -->
+<!-- @param name="--name" type="string" -->
+Required. Lowercase letters, digits and `-`. It names the file and the font in `Font::get()`; the C symbol is
+`font_` followed by the name with `-` turned into `_`.
+<!-- @endparam -->
+<!-- @param name="--size" type="int" -->
+Size in pixels (the em square). Required for a TTF, ignored for a BDF.
+<!-- @endparam -->
+<!-- @param name="--bpp" type="int" -->
+Bits per pixel: `1` (default), `2` or `4`.
+<!-- @endparam -->
+<!-- @param name="--chars" type="string" -->
+The characters to include, as UTF-8 text taken literally (`0-9` is three characters). A character the source
+does not have is skipped, with a warning.
+<!-- @endparam -->
+<!-- @param name="--range" type="string" -->
+Codepoint ranges instead of `--chars`, separated by commas: `0x20-0x7E,0xA0-0xFF`. Without either option the
+font holds U+0020 to U+007E.
+<!-- @endparam -->
+<!-- @param name="--out" type="path" -->
+Output folder, relative to the current directory. Default: `extra.baremetal.fonts.dir` of the project in the
+current directory, or `project-fonts`.
+<!-- @endparam -->
+<!-- @endparams -->
+
+<!-- @code-block language="Bash" label="a 2 bpp title font" -->
+```bash
+phpbm font:bake fonts-src/Roboto.ttf --name=title --size=28 --bpp=2 --chars="Home °C%"
+```
+<!-- @endcode-block -->
+
+The bitmap of one font must stay within 64 KB (GFX glyph offsets are 16-bit): a larger one stops with
+`font '<name>' is larger than 64 KB: use fewer characters or a smaller size`.

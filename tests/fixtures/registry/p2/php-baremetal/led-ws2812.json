@@ -1,0 +1,5 @@
+{"minified": "composer/2.0", "packages": {"php-baremetal/led-ws2812": [
+ {"name": "php-baremetal/led-ws2812", "version": "1.1.0-dev", "type": "library", "extra": {"baremetal": {"board-blocks": ["led:other"]}}},
+ {"version": "1.0.1", "extra": {"baremetal": {"board-blocks": ["led:ws2812"]}}},
+ {"version": "1.0.0", "extra": "__unset"}
+]}}

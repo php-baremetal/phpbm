@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "45d8f250c0062282398db75958844d96",
+    "content-hash": "f3d77e035cce2e59385c742213f5ce5c",
     "packages": [
         {
             "name": "brick/math",
@@ -2832,17 +2832,11 @@
         },
         {
             "name": "php-baremetal/spec",
-            "version": "v1.0.0",
-            "source": {
-                "type": "git",
-                "url": "https://github.com/php-baremetal/spec.git",
-                "reference": "bf944bfcffe32dd03b44143d239cd8e3c74a8cd5"
-            },
+            "version": "1.1.0",
             "dist": {
-                "type": "zip",
-                "url": "https://api.github.com/repos/php-baremetal/spec/zipball/bf944bfcffe32dd03b44143d239cd8e3c74a8cd5",
-                "reference": "bf944bfcffe32dd03b44143d239cd8e3c74a8cd5",
-                "shasum": ""
+                "type": "path",
+                "url": "../packages/spec",
+                "reference": "eef03848f5c643de926ebe9144e9504e782ce95a"
             },
             "require": {
                 "php": ">=8.4"
@@ -2859,22 +2853,25 @@
                     "PhpBaremetal\\Spec\\": "src/"
                 }
             },
-            "notification-url": "https://packagist.org/downloads/",
+            "autoload-dev": {
+                "psr-4": {
+                    "PhpBaremetal\\Spec\\Tests\\": "tests/"
+                }
+            },
             "license": [
                 "MIT"
             ],
             "authors": [
                 {
                     "name": "Gianfrancesco Aurecchia",
-                    "email": "gianfri@aurecchia.com"
+                    "email": "gianfri@php-baremetal.com"
                 }
             ],
             "description": "Shared model of the php-baremetal build manifest and the SDK driver contract.",
-            "support": {
-                "issues": "https://github.com/php-baremetal/spec/issues",
-                "source": "https://github.com/php-baremetal/spec/tree/v1.0.0"
-            },
-            "time": "2026-10-19T11:29:48+00:00"
+            "transport-options": {
+                "symlink": true,
+                "relative": true
+            }
         },
         {
             "name": "phpoption/phpoption",

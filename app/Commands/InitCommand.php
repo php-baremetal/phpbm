@@ -4,15 +4,22 @@ declare(strict_types=1);
 
 namespace App\Commands;
 
+use App\Board\BoardFeatures;
+use App\Board\BoardPackages;
+use App\Board\Feature;
+use App\Board\FeatureChoice;
 use App\PhpbmException;
+use App\Project\BoardFit;
 use App\Project\ConductorCheck;
 use App\Sdk\SdkStore;
+use App\Support\Composer;
 use App\Support\Paths;
 use PhpBaremetal\Spec\Sdk\Descriptor\Board;
 use PhpBaremetal\Spec\Sdk\Descriptor\Module;
 use PhpBaremetal\Spec\Sdk\Sdk;
 use PhpBaremetal\Spec\Support\Json;
 
+use function Laravel\Prompts\multiselect;
 use function Laravel\Prompts\select;
 use function Laravel\Prompts\text;
 
@@ -27,7 +34,9 @@ final class InitCommand extends PhpbmCommand
         {--sdk= : SDK to use}
         {--board= : Board id}
         {--runtime= : Execution model}
-        {--storage= : Where the PHP sources live}';
+        {--storage= : Where the PHP sources live}
+        {--features= : Board features to install: all, none or kinds separated by commas (display,i2c)}
+        {--no-install : Do not run Composer; print the commands instead}';
 
     protected $description = 'Create a new firmware project';
 
@@ -47,6 +56,7 @@ final class InitCommand extends PhpbmCommand
         }
 
         $board = $sdk->board($this->choose('board', 'Board', array_map(static fn ($b) => "{$b->name} ({$b->id})", $sdk->boards)));
+        $features = $this->chooseFeatures($board);
         $runtime = $sdk->runtime($this->chooseModule('runtime', 'Runtime', $sdk->runtimes, $board, $sdk));
         $storage = $sdk->storage($this->chooseModule('storage', 'Storage', $sdk->storages, $board, $sdk));
 
@@ -57,17 +67,79 @@ final class InitCommand extends PhpbmCommand
             $this->warn($problem);
         }
         $this->info("created {$dir}");
+
+        $packages = array_values(array_unique([
+            ...array_map(static fn (Feature $f): string => (string) $f->package(), $features),
+            ...$runtime->requires->packages,
+            ...$storage->requires->packages,
+        ]));
+
+        $failed = false;
+        $showCommands = (bool) $this->option('no-install');
+        if (!$showCommands) {
+            $composer = app(Composer::class);
+            try {
+                if (!$composer->available()) {
+                    throw new PhpbmException(Composer::NOT_FOUND);
+                }
+                // Nothing to add: install still fetches the conductor the project already requires.
+                $composer->run($dir, $packages === [] ? ['install'] : ['require', ...$packages], $this->out());
+            } catch (PhpbmException $e) {
+                $this->error($e->getMessage());
+                $failed = $showCommands = true;
+            }
+        }
+
         $this->line('next:');
         if ($dir !== getcwd()) {
             $this->line("  cd {$dir}");
         }
-        foreach (array_unique([...$runtime->requires->packages, ...$storage->requires->packages]) as $package) {
-            $this->line("  composer require {$package}");
+        if ($showCommands) {
+            if ($packages !== []) {
+                $this->line('  composer require ' . implode(' ', $packages));
+            }
+            $this->line('  composer install');
         }
-        $this->line('  composer install');
         $this->line('  phpbm build');
 
-        return self::SUCCESS;
+        return $failed ? self::FAILURE : self::SUCCESS;
+    }
+
+    /** @return list<Feature> the chosen features that have a package */
+    private function chooseFeatures(Board $board): array
+    {
+        $option = $this->option('features');
+        $option = is_string($option) ? strtolower(trim($option)) : null;
+        if ($option === 'none') {
+            return [];
+        }
+
+        $index = app(BoardPackages::class)->index($this->out());
+        $explicit = $option !== null && $option !== '' && $option !== 'all';
+        if ($index === null) {
+            if ($explicit) {
+                $this->warn('cannot check --features: the list of board packages is not available');
+            }
+            return []; // offline without cache: the warning is already printed
+        }
+
+        $features = BoardFeatures::of($board, $index);
+        $selectable = FeatureChoice::selectable($features);
+        $chosen = $explicit ? FeatureChoice::byKinds($board, $features, $option) : $selectable;
+        foreach (FeatureChoice::notes($features) as $note) {
+            $this->line("  {$note}");
+        }
+        if ($selectable === [] || $explicit || $option === 'all' || !$this->input->isInteractive()) {
+            return $chosen;
+        }
+
+        $options = [];
+        foreach ($selectable as $feature) {
+            $options[$feature->block] = "{$feature->block}  {$feature->type}  {$feature->package()}";
+        }
+        $chosen = multiselect('Board features to install', $options, default: array_keys($options));
+
+        return array_values(array_filter($selectable, static fn (Feature $f): bool => in_array($f->block, $chosen, true)));
     }
 
     private function targetDir(): string
@@ -107,29 +179,18 @@ final class InitCommand extends PhpbmCommand
         return (string) select($label, $options);
     }
 
-    private static function missing(Module $module, Board $board): ?string
-    {
-        foreach ($module->requires->capabilities as $capability) {
-            if (!$board->has($capability)) {
-                return $capability;
-            }
-        }
-        return null;
-    }
-
     /** @param array<string,Module> $modules */
     private function chooseModule(string $kind, string $label, array $modules, Board $board, Sdk $sdk): string
     {
         $explicit = $this->option($kind);
         if (is_string($explicit) && $explicit !== '') {
             $module = $modules[$explicit] ?? null;
-            $missing = $module === null ? null : self::missing($module, $board);
-            if ($missing !== null) {
-                throw new PhpbmException("{$kind} '{$explicit}' needs {$missing}, but board '{$board->id}' has none");
+            if ($module !== null) {
+                BoardFit::check($kind, $explicit, $module, $board);
             }
             return $explicit;
         }
-        $fitting = array_filter($modules, static fn (Module $m) => self::missing($m, $board) === null);
+        $fitting = array_filter($modules, static fn (Module $m) => BoardFit::missing($m, $board) === null);
         if ($fitting === []) {
             throw new PhpbmException("no {$kind} of sdk {$sdk->descriptor->name} fits board {$board->id}");
         }

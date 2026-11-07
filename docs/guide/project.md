@@ -59,16 +59,73 @@ next: { label: 'SDKs and phpbm.lock', href: './sdks.md' }
 | `src` | no | Source directory, default `project-src`. |
 | `entry` | no | Entry script inside `src`, default `index.php`. |
 | `env` | no | A `.env` file whose values the firmware exposes as `$_ENV` and `getenv()`. |
-| `options` | no | SDK, runtime, storage and PHP-extension options, e.g. `{ "power-save": "on" }`. |
+| `options` | no | SDK, runtime, storage, PHP-extension and installed-package options, e.g. `{ "power-save": "on" }`. |
 | `board-overrides` | no | Changes to the board's peripheral blocks, e.g. other pins for a block. The block's `type` cannot change. |
+
+Installed native packages may declare options of their own (in their `extra.baremetal.options`); they follow the same
+rules as the SDK's, and phpbm names the package in its messages.
 
 phpbm checks all of them against the SDK before it builds: an unknown option lists the accepted ones, a
 runtime the board cannot run names the missing capability, a missing package names the `composer require`.
+
+To change the board, or to add or remove the board's features (display, LED, I2C bus...), run `phpbm board`:
+it checks that the runtime and the storage fit the new board, offers the new board's features, drops the
+`board-overrides` of blocks the new board does not have and runs Composer. See
+[phpbm board](../commands/project.md#board).
 
 <!-- @callout variant="note" title="After changing extra" -->
 `extra` is part of the hash in `composer.lock`. After changing only `extra.baremetal` (the board, an option),
 run `composer update --lock`: it refreshes the hash and the manifest without updating packages.
 <!-- @endcallout -->
+
+## fonts
+
+Text on a display needs fonts. phpbm collects them from four places and hands them to the SDK; each font is
+known by its name.
+
+| Source | How | Name |
+| --- | --- | --- |
+| Default font | shipped by `php-baremetal/ext-display` (DejaVu Sans Mono 16 px, U+0020 to U+00FF, 1 bpp) | `default` |
+| Font packages | a package whose `extra.baremetal.fonts` is `{"<name>": "<path of the .h>"}` | the key |
+| Project folder | the `.h` files in `extra.baremetal.fonts.dir` (default `project-fonts`) | the file name without `.h` |
+| Bake list | `extra.baremetal.fonts.bake`, rasterized at build time | the entry's `name` |
+
+<!-- @code-block language="JSON" label="composer.json" -->
+```json
+"fonts": {
+  "default": true,
+  "dir": "project-fonts",
+  "bake": [
+    { "name": "title", "source": "fonts-src/Roboto.ttf", "size": 28, "bpp": 2, "chars": "Home °C%" },
+    { "name": "icons", "source": "fonts-src/weather.bdf" }
+  ]
+}
+```
+<!-- @endcode-block -->
+
+- `default` (bool, default `true`): with `false` the default font is left out of the firmware, and `text()` or
+  `textWidth()` without `font:` throw.
+- `dir` (default `project-fonts`): a path relative to the project. A folder that does not exist counts as empty.
+- A `bake` entry: `name` (required, `[a-z0-9][a-z0-9-]*`), `source` (required, relative to the project, a `.ttf`
+  or `.bdf`), `size` (pixels, required for a TTF, ignored for a BDF), `bpp` (1, 2 or 4; default 1), `chars` (a
+  UTF-8 string) or `range` (`"0x20-0x7E"`, several ranges separated by commas). With neither, U+0020 to U+007E.
+
+Baked fonts are written to `.phpbm/build/fonts/<name>.h`. They are cached in `~/.phpbm/cache/fonts`, keyed by
+the source file, the entry's parameters and the baker version: a font is baked again only when one changes.
+`phpbm font:bake` makes the same header from the command line.
+
+Fonts need `php-baremetal/ext-display`. Errors:
+
+| Message | When |
+| --- | --- |
+| `font '<name>' is defined twice (<source1>, <source2>)` | two fonts with the same name, from any source, `default` included |
+| `font '<name>': source '<path>' not found` | a bake source is missing |
+| `font '<name>': '<file>' is not a TTF or BDF font` | the source cannot be read |
+| `font '<name>': size is required for a TTF source` | a TTF entry without `size` |
+| `font file '<path>' not found (<package>)` | a package declares a font file that is not there |
+| warning `font '<name>': <n> characters not in the source (...)` | `chars` lists characters the source lacks: they are skipped |
+| `font file '<path>' is not a GFX font header` | a project or package `.h` the SDK cannot read |
+| `fonts need php-baremetal/ext-display: composer require php-baremetal/ext-display` | fonts used without ext-display |
 
 ## Options of the esp32 SDK
 
