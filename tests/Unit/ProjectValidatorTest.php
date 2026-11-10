@@ -175,3 +175,22 @@ it('reports an invalid option definition of a package', function () {
     $bad = demoSizePackage(['demo-size' => ['type' => 'nope']]);
     expect(fn () => validateDemoProject([], [$bad]))->toThrow(PhpbmException::class, 'php-baremetal/ext-demo');
 });
+
+function effectsPackage(): Package
+{
+    return new Package('php-baremetal/ext-slate', 'bm-ext', '1.0.0', 'p', [
+        'module' => 'slate',
+        'options' => ['slate-effects' => ['type' => 'set', 'values' => ['gradients', 'shadows', 'blur'], 'default' => ['gradients', 'shadows', 'blur'], 'description' => 'Effects.']],
+    ]);
+}
+
+it('accepts and defaults set options, keeping the order of the declared values', function () {
+    expect(validateDemoProject([], [effectsPackage()])->options['slate-effects'])->toBe(['gradients', 'shadows', 'blur']);
+    expect(validateDemoProject(['options' => ['slate-effects' => ['blur', 'shadows']]], [effectsPackage()])->options['slate-effects'])->toBe(['shadows', 'blur']);
+    expect(validateDemoProject(['options' => ['slate-effects' => []]], [effectsPackage()])->options['slate-effects'])->toBe([]);
+});
+
+it('rejects a set option value that is not allowed', function () {
+    expect(fn () => validateDemoProject(['options' => ['slate-effects' => ['glow']]], [effectsPackage()]))
+        ->toThrow(PhpbmException::class, 'extra.baremetal.options.slate-effects: must be a list of gradients, shadows, blur, got ["glow"]');
+});

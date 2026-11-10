@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.0
+
+- Added: options of type "set" (a list of allowed values) in extra.baremetal.options, as declared by packages (needs php-baremetal/spec 1.2).
+
 ## 0.1.1
 
 - Fixed: on Windows, Composer found as a path with '/' (on the PATH or in PHPBM_COMPOSER) is started with '\' separators, which cmd.exe needs to run a .bat.

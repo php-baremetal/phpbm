@@ -21,7 +21,7 @@
         "composer/semver": "^3.4",
         "laravel-zero/foundation": "^13.23",
         "laravel-zero/framework": "^13.0",
-        "php-baremetal/spec": "^1.1"
+        "php-baremetal/spec": "^1.2"
     },
     "require-dev": {
         "laravel/pint": "^1.30.4",
