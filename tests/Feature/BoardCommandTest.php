@@ -276,6 +276,7 @@ it('chooses the new board from a list with --change', function () {
             'demo-board' => 'Demo board (demo-board)',
             'demo-net' => 'Demo net (demo-net)',
             'demo-screen' => 'Demo screen (demo-screen)',
+            'demo-sdio' => 'Demo sdio (demo-sdio)',
         ])
         ->expectsOutputToContain('board: demo-board')
         ->assertExitCode(0);
@@ -525,4 +526,66 @@ it('offers the feature of a block the overrides add', function () {
     $this->artisan('board', ['--features' => 'display', '--no-interaction' => true])->assertExitCode(0);
 
     expect(composerCalls($this->log))->toBe(['require ' . BC_DISPLAY]);
+});
+
+it('drops an added block the chip of the new board cannot take', function () {
+    boardProject($this->dir, ['board' => 'demo-net', 'board-overrides' => ['microsd' => BC_SD, 'network' => ['hostname' => 'x']]]);
+
+    $this->artisan('board', ['board' => 'demo-sdio', '--no-interaction' => true])
+        ->expectsOutputToContain('board: demo-sdio')
+        ->assertExitCode(0);
+
+    expect(composerCalls($this->log))->toBe([
+        'config extra.baremetal.board demo-sdio',
+        'config --json extra.baremetal.board-overrides {"network":{"hostname":"x"}}',
+    ]);
+});
+
+it('does not let an added block the new chip cannot take satisfy the storage', function () {
+    boardProject($this->dir, ['board' => 'demo-net', 'storage' => 'microsd', 'board-overrides' => ['microsd' => BC_SD]]);
+
+    $this->artisan('board', ['board' => 'demo-sdio', '--no-interaction' => true])
+        ->expectsOutputToContain("storage 'microsd' needs microsd, but board 'demo-sdio' has none")
+        ->assertExitCode(1);
+});
+
+it('asks before dropping an added block the chip of the new board cannot take', function () {
+    $file = boardProject($this->dir, ['board' => 'demo-net', 'board-overrides' => ['microsd' => BC_SD]]);
+    $before = file_get_contents($file);
+    $this->env = app()['env'];
+    app()['env'] = 'testing';
+
+    $this->artisan('board', ['board' => 'demo-sdio'])
+        ->expectsOutputToContain("board-overrides that add a block the chip of board 'demo-sdio' does not support: microsd ('spi', the chip supports sdio)")
+        ->expectsConfirmation('Remove these overrides?', 'no')
+        ->expectsOutputToContain("the build fails with overrides that add blocks the chip of board 'demo-sdio' does not support (microsd)")
+        ->assertExitCode(1);
+
+    expect(file_get_contents($file))->toBe($before);
+});
+
+it('drops a partial override that repeats the type of a block the new board does not have', function () {
+    $file = boardProject($this->dir, ['board' => 'demo-board', 'board-overrides' => ['microsd' => ['type' => 'spi', 'cs' => 9]]]);
+    $before = file_get_contents($file);
+    $this->env = app()['env'];
+    app()['env'] = 'testing';
+
+    $this->artisan('board', ['board' => 'demo-net'])
+        ->expectsOutputToContain("board-overrides that change a block of board 'demo-board' which board 'demo-net' does not have: microsd (to keep such a block, write it whole with its type)")
+        ->expectsConfirmation('Remove these overrides?', 'no')
+        ->expectsOutputToContain("the build fails with overrides of blocks board 'demo-net' does not have (microsd)")
+        ->assertExitCode(1);
+
+    expect(file_get_contents($file))->toBe($before);
+});
+
+it('merges an added block into the same block of the new board', function () {
+    boardProject($this->dir, ['board' => 'demo-net', 'storage' => 'microsd', 'board-overrides' => ['microsd' => BC_SD]]);
+
+    $this->artisan('board', ['board' => 'demo-board', '--no-interaction' => true])
+        ->expectsOutputToContain('board: demo-board')
+        ->assertExitCode(0);
+
+    expect(composerCalls($this->log))->toBe(['config extra.baremetal.board demo-board'])
+        ->and(composerJson($this->dir)['extra']['baremetal']['board-overrides'])->toBe(['microsd' => BC_SD]);
 });

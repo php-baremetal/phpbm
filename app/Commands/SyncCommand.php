@@ -14,7 +14,7 @@ final class SyncCommand extends PhpbmCommand
 {
     protected $signature = 'sync {--p|port= : Serial port of the board}';
 
-    protected $description = 'Copy the project sources to the board storage (microSD) without flashing';
+    protected $description = 'Copy the project sources (microSD storage) and the microSD assets to the card without flashing';
 
     protected function perform(): int
     {

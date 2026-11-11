@@ -124,3 +124,15 @@ it('names only the microSD assets when the code is embedded', function () {
         ->expectsOutputToContain('the firmware was flashed to /dev/x, but copying the microSD assets to the card failed (retry with `phpbm sync`)')
         ->assertExitCode(1);
 });
+
+it('names the microSD assets for a declared microsd folder that is empty', function () {
+    // The same rule as the SDK's: an emptied folder is still synced, to clear its old files on the card.
+    $project = (string) getcwd();
+    @mkdir("{$project}/assets/photos", 0777, true);
+    Fixtures::project($project, ['assets' => [['dir' => 'assets/photos', 'storage' => 'microsd']]]);
+    Fixtures::toolchain($this->home, ['chips' => ['/dev/x' => 'demo'], 'sync' => 'fail']);
+
+    $this->artisan('flash', ['--port' => '/dev/x'])
+        ->expectsOutputToContain('the firmware was flashed to /dev/x, but copying the microSD assets to the card failed (retry with `phpbm sync`)')
+        ->assertExitCode(1);
+});

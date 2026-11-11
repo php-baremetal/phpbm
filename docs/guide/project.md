@@ -60,7 +60,7 @@ next: { label: 'SDKs and phpbm.lock', href: './sdks.md' }
 | `entry` | no | Entry script inside `src`, default `index.php`. |
 | `env` | no | A `.env` file whose values the firmware exposes as `$_ENV` and `getenv()`. |
 | `options` | no | SDK, runtime, storage, PHP-extension and installed-package options, e.g. `{ "power-save": "on" }`. |
-| `board-overrides` | no | Changes to the board's peripheral blocks, e.g. other pins for a block, or a block the board does not have, written whole with its `type` (e.g. a microSD slot on a generic board). The `type` of a block the board has cannot change. |
+| `board-overrides` | no | Changes to the board's peripheral blocks, e.g. other pins for a block, or a block the board does not have, written whole with its `type` (e.g. a microSD slot on a generic board); its name is a block kind of the SDK or of an installed package, optionally with a suffix (`led-2`). The `type` of a block the board has cannot change. |
 
 Installed native packages may declare options of their own (in their `extra.baremetal.options`); they follow the same
 rules as the SDK's, and phpbm names the package in its messages.

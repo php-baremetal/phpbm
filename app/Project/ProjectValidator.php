@@ -25,6 +25,7 @@ final class ProjectValidator
         );
 
         $problems = [];
+        $this->addedBlocks($project, $sdk, $target, $problems);
         foreach ([$target->runtime, $target->storage] as $module) {
             foreach ($module->requires->capabilities as $capability) {
                 if (!$board->has($capability)) {
@@ -139,6 +140,69 @@ final class ProjectValidator
             } elseif ($asset->storage === 'embedded' && $target->storage->id !== 'embedded') {
                 $problems[] = "assets in {$asset->dir}: storage 'embedded' puts assets into the flash image of the code, "
                     . "which needs extra.baremetal.storage 'embedded' (it is '{$target->storage->id}')";
+            }
+        }
+    }
+
+    /**
+     * The blocks board-overrides adds: named after a block kind the SDK knows (a block of its board files or of its
+     * chips) or an installed package declares (extra.baremetal.board-blocks), optionally with a suffix (led-2); a
+     * block the SDK implements on the chip has a type the chip supports. Catches typos, and names such as 'php' or
+     * 'sdk' that are no blocks at all.
+     *
+     * @param list<string> $problems
+     */
+    private function addedBlocks(Project $project, Sdk $sdk, Target $target, array &$problems): void
+    {
+        $board = $sdk->board($project->manifest->project->board);
+        $added = array_diff_key($target->board->peripherals, $board->peripherals);
+        if ($added === []) {
+            return;
+        }
+        $kinds = [];
+        foreach ($sdk->boards as $known) {
+            $kinds += array_flip(array_keys($known->peripherals));
+        }
+        foreach ($sdk->chips as $chip) {
+            $kinds += array_flip(array_keys($chip->capabilities));
+        }
+        foreach ($project->manifest->packages as $package) {
+            foreach ((array) ($package->meta['board-blocks'] ?? []) as $entry) {
+                if (is_string($entry) && str_contains($entry, ':')) {
+                    $kinds[explode(':', $entry, 2)[0]] = true;
+                }
+            }
+        }
+        $kinds = array_map('strval', array_keys($kinds));
+        sort($kinds);
+        foreach ($added as $name => $block) {
+            $name = (string) $name;
+            $kind = null;
+            foreach ($kinds as $candidate) {
+                if ($name === $candidate || str_starts_with($name, "{$candidate}-")) {
+                    $kind = $candidate;
+                    break;
+                }
+            }
+            if ($kind === null) {
+                $problems[] = sprintf(
+                    "board-overrides: '%s' is not a block of sdk %s %s or of an installed package (blocks: %s); a second block of a kind takes a suffix, e.g. led-2",
+                    $name,
+                    $sdk->descriptor->name,
+                    $sdk->descriptor->version,
+                    implode(', ', $kinds),
+                );
+                continue;
+            }
+            $type = (string) $block['type'];
+            if (isset($target->chip->capabilities[$name]) && !$target->chip->supports($name, $type)) {
+                $problems[] = sprintf(
+                    "board-overrides: chip '%s' does not support %s '%s' (it supports %s)",
+                    $target->chip->id,
+                    $name,
+                    $type,
+                    implode(', ', $target->chip->capabilities[$name]),
+                );
             }
         }
     }

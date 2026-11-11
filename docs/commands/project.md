@@ -124,8 +124,10 @@ project's runtime and storage fit it, before it changes anything. The new board 
 stays on any board that does not have that block, so a microSD slot added on the old board still counts for
 `"storage": "microsd"`. Then it offers the features of the new board, all checked (a block added by an override
 included), and lists the installed feature packages the new board does not use, checked for removal. The overrides
-the new board cannot take are listed too: those without a `type` for a block the new board does not have, and
-those whose `type` differs from the new board's block. phpbm asks to remove them, because the build would fail with
+the new board cannot take are listed too: those without a `type` for a block the new board does not have, those
+whose `type` differs from the new board's block, those that add a block of a type the new board's chip does not
+support (a `spi` microSD slot on an ESP32-P4), and those that gave the `type` but only some keys of a block the old
+board had (a partial block, which cannot stand alone on a board without it: write the block whole to keep it). phpbm asks to remove them, because the build would fail with
 them (with `-n` it removes them). Then it runs, in this order:
 
 1. `composer config extra.baremetal.board <id>`;

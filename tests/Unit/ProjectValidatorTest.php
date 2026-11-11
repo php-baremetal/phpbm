@@ -241,7 +241,7 @@ it('adds a block the board does not have from board-overrides', function () {
 });
 
 it('checks the storage against the board after the overrides', function () {
-    expect(fn () => validateDemoProject(['board' => 'demo-net', 'storage' => 'microsd']))
+    expect(fn () => validateDemoProject(['board' => 'demo-net', 'storage' => 'microsd', 'board-overrides' => ['network' => ['hostname' => 'x']]]))
         ->toThrow(PhpbmException::class, "storage 'microsd' needs microsd, but board 'demo-net' has none");
 });
 
@@ -252,4 +252,26 @@ it('accepts microsd assets on a board whose microSD slot comes from the override
 it('rejects an override that changes the type of a block of the board', function () {
     expect(fn () => validateDemoProject(['board-overrides' => ['microsd' => ['type' => 'sdio']]]))
         ->toThrow(SpecException::class, "board-overrides: 'microsd.type' cannot be overridden: board 'demo-board' has a 'spi' microsd");
+});
+
+it('rejects an added block of a kind neither the sdk nor an installed package knows', function () {
+    foreach (['netwrok', 'php', 'sdk'] as $name) {
+        expect(fn () => validateDemoProject(['board' => 'demo-net', 'board-overrides' => [$name => ['type' => 'w5500', 'cs' => 1]]]))
+            ->toThrow(PhpbmException::class, "board-overrides: '{$name}' is not a block of sdk demo 1.0.0 or of an installed package (blocks: display, i2c, led, microsd, network); a second block of a kind takes a suffix, e.g. led-2");
+    }
+});
+
+it('accepts added blocks of the kinds of the sdk boards, with a suffix, and of installed packages', function () {
+    $imu = new Package('acme/imu-x', 'bm-ext', '1.0.0', 'p', ['module' => 'imu', 'board-blocks' => ['imu:x1']]);
+    $target = validateDemoProject(['board' => 'demo-net', 'board-overrides' => [
+        'led-2' => ['type' => 'ws2812', 'pin' => 3],
+        'display' => ['type' => 'st77916'],
+        'imu' => ['type' => 'x1'],
+    ]], [$imu]);
+    expect(array_keys($target->board->peripherals))->toBe(['network', 'led-2', 'display', 'imu']);
+});
+
+it('rejects an added sdk block of a type the chip does not support', function () {
+    expect(fn () => validateDemoProject(['board' => 'demo-net', 'board-overrides' => ['microsd' => ['type' => 'sdio']]]))
+        ->toThrow(PhpbmException::class, "board-overrides: chip 'demo' does not support microsd 'sdio' (it supports spi)");
 });

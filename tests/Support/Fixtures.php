@@ -71,6 +71,8 @@ final class Fixtures
             'chips/demo/chip.json' => '{"name":"Demo","target":"demo","capabilities":{"microsd":["spi"],"network":["wifi"]},"psram":["quad"]}',
             'boards/demo-board.json' => '{"name":"Demo board","chip":"demo","flash":"4MB","microsd":{"type":"spi","cs":1,"sclk":2,"mosi":3,"miso":4}}',
             'boards/demo-net.json' => '{"name":"Demo net","chip":"demo","flash":"8MB","network":{"type":"wifi"}}',
+            'chips/demo2/chip.json' => '{"name":"Demo 2","target":"demo2","capabilities":{"microsd":["sdio"],"network":["wifi"]},"psram":["quad"]}',
+            'boards/demo-sdio.json' => '{"name":"Demo sdio","chip":"demo2","flash":"4MB","network":{"type":"wifi"}}',
             'boards/demo-screen.json' => '{"name":"Demo screen","chip":"demo","flash":"16MB","display":{"type":"st77916"},"led":{"type":"ws2812"},"i2c":{"type":"i2c"},"network":{"type":"wifi"}}',
             'runtimes/loop/runtime.json' => '{"description":"Runs a loop","options":{"restart-delay":{"description":"Seconds before a restart","type":"int","min":0,"max":3600,"default":5}}}',
             'runtimes/server/runtime.json' => '{"description":"HTTP server","options":{"retries":{"description":"Retries","type":"int","min":0,"max":9,"default":3}},"requires":{"capabilities":["network"],"packages":["php-baremetal/ext-web"]}}',

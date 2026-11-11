@@ -134,8 +134,8 @@ the common errors.
 | `init [dir]` | Create a new firmware project. |
 | `board [<board>]` | Add or remove the board's features, or change the board and offer the new board's features. |
 | `build [--clean]` | Build the firmware of the project in the current directory. |
-| `flash [-p <port>] [--force]` | Build if needed, check the connected chip and flash it; with microSD storage, also copy the sources to the card. |
-| `sync [-p <port>]` | Copy the project sources to the board's microSD without building or flashing. |
+| `flash [-p <port>] [--force]` | Build if needed, check the connected chip and flash it; then copy to the card the sources (microSD storage) and the microSD assets. |
+| `sync [-p <port>]` | Copy the project sources (microSD storage) and the microSD assets to the board's microSD card without building or flashing. |
 | `monitor [-p <port>]` | Open the board's serial console. |
 | `discover [-p <port>]` | List the serial ports, the chip on each one and the boards that match it. |
 | `font:bake <source> --name=<name>` | Turn a TTF or BDF font into a font header for ext-display. |

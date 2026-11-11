@@ -51,20 +51,37 @@ final class FlashCommand extends PhpbmCommand
         return self::SUCCESS;
     }
 
-    /** What the sync copies to the card: the sources (code on the microSD) and/or the microSD assets. */
+    /**
+     * What the sync copies to the card: the sources (code on the microSD) and/or the microSD assets. The project has
+     * microSD assets with a declared microsd folder, even an empty one (its old files on the card are cleared), or a
+     * prepared microsd asset: the SDK's rule.
+     */
     private function cardFiles(BuildPlan $plan): string
     {
         $parts = [];
         if ($plan->storage->id === 'microsd') {
             $parts[] = 'the sources';
         }
-        foreach ($plan->assets as $asset) {
-            if ($asset->storage === 'microsd') {
-                $parts[] = 'the microSD assets';
-                break;
-            }
+        if ($this->hasCardAssets($plan)) {
+            $parts[] = 'the microSD assets';
         }
 
         return $parts === [] ? 'the files' : implode(' and ', $parts);
+    }
+
+    private function hasCardAssets(BuildPlan $plan): bool
+    {
+        foreach ($plan->manifest->project->assets->dirs as $dir) {
+            if ($dir->storage === 'microsd') {
+                return true;
+            }
+        }
+        foreach ($plan->assets as $asset) {
+            if ($asset->storage === 'microsd') {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

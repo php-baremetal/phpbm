@@ -122,8 +122,10 @@ final class BoardCommand extends PhpbmCommand
     /**
      * 3.2: change the board. Every check runs before anything is written.
      *
-     * The overrides that add a block (they give its 'type') stay on any board that does not have it; an override
-     * of a block the new board lacks without a 'type', or with a 'type' other than the new board's, is dropped. The
+     * The overrides that add a block (they give its 'type') stay on any board that does not have it, when its chip
+     * supports the type of a block the SDK implements. Dropped: an override of a block the new board lacks without
+     * a 'type'; one with a 'type' that changed some keys of a block of the old board, not all of them (a partial block),
+     * of a block the new board lacks; one with a 'type' other than the new board's; an added block the new chip cannot take. The
      * runtime, the storage and the features are checked against the new board with the overrides that stay.
      *
      * @param array<array-key,mixed> $overrides
@@ -133,19 +135,28 @@ final class BoardCommand extends PhpbmCommand
     private function changePlan(Sdk $sdk, array $overrides, array $baremetal, string $current, Board $board, array $required): ChangePlan
     {
         $missing = [];
+        $partial = [];
         $retyped = [];
+        $unchipped = [];
+        $chip = $sdk->chip($board->chip);
+        $oldBoard = $sdk->boards[$current] ?? null;
         foreach ($overrides as $block => $entry) {
             $block = (string) $block;
             $type = is_array($entry) && array_key_exists('type', $entry) ? $entry['type'] : null;
             if (!$board->has($block)) {
                 if ($type === null) {
                     $missing[] = $block;
+                } elseif ($oldBoard !== null && $oldBoard->has($block) && array_diff_key($oldBoard->peripherals[$block], $entry) !== []) {
+                    $missing[] = $block;
+                    $partial[] = $block;
+                } elseif (is_string($type) && isset($chip->capabilities[$block]) && !$chip->supports($block, $type)) {
+                    $unchipped[$block] = sprintf("%s ('%s', the chip supports %s)", $block, $type, implode(', ', $chip->capabilities[$block]));
                 }
             } elseif ($type !== null && $type !== $board->peripherals[$block]['type']) {
                 $retyped[$block] = sprintf("%s ('%s', the board has '%s')", $block, is_scalar($type) ? (string) $type : json_encode($type), $board->peripherals[$block]['type']);
             }
         }
-        $unset = [...$missing, ...array_keys($retyped)];
+        $unset = [...$missing, ...array_keys($retyped), ...array_keys($unchipped)];
         $kept = array_diff_key($overrides, array_flip($unset));
         $effective = $board->withOverrides($kept);
 
@@ -180,11 +191,19 @@ final class BoardCommand extends PhpbmCommand
         }
 
         if ($unset !== [] && $this->input->isInteractive()) {
-            if ($missing !== []) {
-                $this->line("board-overrides of blocks board '{$board->id}' does not have: " . implode(', ', $missing));
+            $plain = array_diff($missing, $partial);
+            if ($plain !== []) {
+                $this->line("board-overrides of blocks board '{$board->id}' does not have: " . implode(', ', $plain));
+            }
+            if ($partial !== []) {
+                $this->line("board-overrides that change a block of board '{$current}' which board '{$board->id}' does not have: "
+                    . implode(', ', $partial) . ' (to keep such a block, write it whole with its type)');
             }
             if ($retyped !== []) {
                 $this->line("board-overrides that change the type of a block of board '{$board->id}': " . implode(', ', $retyped));
+            }
+            if ($unchipped !== []) {
+                $this->line("board-overrides that add a block the chip of board '{$board->id}' does not support: " . implode(', ', $unchipped));
             }
             if (!confirm('Remove these overrides?', default: true)) {
                 $why = [];
@@ -193,6 +212,9 @@ final class BoardCommand extends PhpbmCommand
                 }
                 if ($retyped !== []) {
                     $why[] = "overrides that change the type of blocks of board '{$board->id}' (" . implode(', ', array_keys($retyped)) . ')';
+                }
+                if ($unchipped !== []) {
+                    $why[] = "overrides that add blocks the chip of board '{$board->id}' does not support (" . implode(', ', array_keys($unchipped)) . ')';
                 }
                 throw new PhpbmException('the build fails with ' . implode(' and ', $why)
                     . ': remove them from extra.baremetal.board-overrides, or keep the board');
