@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Commands;
 
+use App\Build\AssetResolver;
 use App\Build\Builder;
 use App\Build\PortPicker;
 use App\Project\ConductorCheck;
@@ -20,6 +21,12 @@ final class SyncCommand extends PhpbmCommand
         $out = $this->out();
         $target = app(Builder::class)->plan(Project::load((string) getcwd(), app(ConductorCheck::class)), $out);
         $port = app(PortPicker::class)->pick($target->driver, $this->option('port'), $this->input->isInteractive());
+        $staging = Builder::stagingDir($target->plan);
+        if (AssetResolver::embedded($target->assets) !== [] && !is_dir($staging)) {
+            $out->warning('the embedded assets are not built yet: run `phpbm flash` to put them on the board');
+        } elseif (app(AssetResolver::class)->stale($target->assets, $staging)) {
+            $out->warning('the embedded assets changed since the last build: run `phpbm flash` to put them on the board');
+        }
 
         if ($target->driver->sync($target->plan, $port, $out)) {
             $this->info("synced {$port->path}");

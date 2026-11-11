@@ -139,6 +139,7 @@ the common errors.
 | `monitor [-p <port>]` | Open the board's serial console. |
 | `discover [-p <port>]` | List the serial ports, the chip on each one and the boards that match it. |
 | `font:bake <source> --name=<name>` | Turn a TTF or BDF font into a font header for ext-display. |
+| `image:convert <input> <output>` | Turn a PNG into a .sli image for Slate. |
 | `sdk:install <name>[@<constraint>]` | Install an SDK from its release index. |
 | `sdk:list` | List the installed and linked SDKs. |
 | `sdk:update` | Move the project to the newest SDK version its constraint allows. |

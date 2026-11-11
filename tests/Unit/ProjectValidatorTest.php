@@ -194,3 +194,62 @@ it('rejects a set option value that is not allowed', function () {
     expect(fn () => validateDemoProject(['options' => ['slate-effects' => ['glow']]], [effectsPackage()]))
         ->toThrow(PhpbmException::class, 'extra.baremetal.options.slate-effects: must be a list of gradients, shadows, blur, got ["glow"]');
 });
+
+/** @param list<string> $dirs asset folders to create */
+function validateAssetProject(array $baremetal, array $dirs): void
+{
+    $dir = Fixtures::tempDir();
+    foreach ($dirs as $assets) {
+        @mkdir("{$dir}/{$assets}", 0777, true);
+    }
+    (new ProjectValidator())->validate(Project::load(Fixtures::project($dir, $baremetal)), test()->sdk);
+}
+
+it('accepts asset folders on the storages of the sdk', function () {
+    validateAssetProject(['assets' => [
+        ['dir' => 'assets/ui', 'storage' => 'embedded'],
+        ['dir' => 'assets/photos', 'storage' => 'microsd'],
+    ]], ['assets/ui', 'assets/photos']);
+})->throwsNoExceptions();
+
+it('reports a missing asset folder', function () {
+    expect(fn () => validateAssetProject(['assets' => [['dir' => 'assets/ui', 'storage' => 'embedded']]], []))
+        ->toThrow(PhpbmException::class, 'asset directory assets/ui does not exist');
+});
+
+it('reports an asset storage the sdk does not have', function () {
+    expect(fn () => validateAssetProject(['assets' => [['dir' => 'assets/ui', 'storage' => 'flash']]], ['assets/ui']))
+        ->toThrow(PhpbmException::class, "assets in assets/ui: unknown storage 'flash' (sdk demo 1.0.0 has embedded, microsd)");
+});
+
+it('reports microsd assets on a board without a microSD slot', function () {
+    expect(fn () => validateAssetProject(['board' => 'demo-net', 'assets' => [['dir' => 'assets/photos', 'storage' => 'microsd']]], ['assets/photos']))
+        ->toThrow(PhpbmException::class, 'assets in assets/photos need a microSD slot, and Demo net has none');
+});
+
+it('reports embedded assets when the code is not on embedded storage', function () {
+    expect(fn () => validateAssetProject(['storage' => 'microsd', 'assets' => [['dir' => 'assets/ui', 'storage' => 'embedded']]], ['assets/ui']))
+        ->toThrow(PhpbmException::class, "assets in assets/ui: with the code on the microSD (extra.baremetal.storage 'microsd') assets go on the microSD: use storage 'microsd'");
+});
+
+const PV_SD = ['type' => 'spi', 'cs' => 10, 'sclk' => 12, 'mosi' => 11, 'miso' => 13];
+
+it('adds a block the board does not have from board-overrides', function () {
+    $target = validateDemoProject(['board' => 'demo-net', 'storage' => 'microsd', 'board-overrides' => ['microsd' => PV_SD]]);
+    expect($target->board->peripherals['microsd'])->toBe(PV_SD)
+        ->and($target->board->capabilities())->toBe(['network' => 'wifi', 'microsd' => 'spi']);
+});
+
+it('checks the storage against the board after the overrides', function () {
+    expect(fn () => validateDemoProject(['board' => 'demo-net', 'storage' => 'microsd']))
+        ->toThrow(PhpbmException::class, "storage 'microsd' needs microsd, but board 'demo-net' has none");
+});
+
+it('accepts microsd assets on a board whose microSD slot comes from the overrides', function () {
+    validateAssetProject(['board' => 'demo-net', 'board-overrides' => ['microsd' => PV_SD], 'assets' => [['dir' => 'assets/photos', 'storage' => 'microsd']]], ['assets/photos']);
+})->throwsNoExceptions();
+
+it('rejects an override that changes the type of a block of the board', function () {
+    expect(fn () => validateDemoProject(['board-overrides' => ['microsd' => ['type' => 'sdio']]]))
+        ->toThrow(SpecException::class, "board-overrides: 'microsd.type' cannot be overridden: board 'demo-board' has a 'spi' microsd");
+});

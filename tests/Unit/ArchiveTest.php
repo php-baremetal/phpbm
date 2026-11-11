@@ -215,3 +215,130 @@ it('extracts tar links that stay inside the target', function () {
         ->and(file_get_contents($root . '/hard.txt'))->toBe('r')
         ->and(file_get_contents($root . '/' . str_repeat('n', 120)))->toBe('long');
 })->skipOnWindows();
+
+/** Every path under $root (relative, sorted) with what it is: dir, link -> target, or the sha256 of the file. */
+function treeListing(string $root): array
+{
+    $listing = [];
+    $items = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($root, FilesystemIterator::SKIP_DOTS), RecursiveIteratorIterator::SELF_FIRST);
+    foreach ($items as $path => $item) {
+        $relative = substr((string) $path, strlen($root) + 1);
+        // macOS's tar may write names decomposed (NFD); compare them composed.
+        if (class_exists(Normalizer::class)) {
+            $relative = Normalizer::normalize($relative, Normalizer::FORM_C) ?: $relative;
+        }
+        $listing[$relative] = match (true) {
+            is_link((string) $path) => 'link -> ' . readlink((string) $path),
+            is_dir((string) $path) => 'dir',
+            default => hash_file('sha256', (string) $path),
+        };
+    }
+    ksort($listing);
+    return $listing;
+}
+
+/** The tar entries of a package with a UTF-8 name, a long name, a pax path, nested folders and links. */
+function richTarEntries(): array
+{
+    $long = 'pkg/deep/' . str_repeat('l', 110) . '.txt';
+    return [
+        tarEntry('pkg/', '', '5'),
+        tarEntry('pkg/deep/nested/dirs/', '', '5'),
+        tarEntry('pkg/deep/nested/dirs/f.txt', 'nested'),
+        tarEntry('pkg/Tuffy私はガラスを食べられます.ttf', 'glass'),
+        tarEntry('././@LongLink', $long . "\0", 'L'),
+        tarEntry('pkg/deep/short', str_repeat('L', 3000)),
+        tarEntry('PaxHeaders/x', ($record = 'path=pkg/pax/経路-' . str_repeat('p', 100) . ".txt\n") ? sprintf('%d %s', strlen($record) + 4, $record) : '', 'x'),
+        tarEntry('pkg/pax/placeholder', 'pax'),
+        tarEntry('pkg/real.txt', 'r'),
+        tarEntry('pkg/deep/up', '', '2', '../real.txt'),
+        tarEntry('pkg/hard.txt', '', '1', 'pkg/real.txt'),
+    ];
+}
+
+it('extracts tar archives natively on Windows, like tar does', function (string $extension, Closure $compress) {
+    $dir = Fixtures::tempDir();
+    $archive = $dir . '/pkg' . $extension;
+    file_put_contents($archive, $compress(implode('', richTarEntries()) . str_repeat("\0", 1024)));
+
+    $process = new PhpBaremetal\Spec\Testing\FakeProcess();
+    $root = (new Archive($process, 'Windows'))->extract($archive, $dir . '/native');
+    mkdir($dir . '/tar');
+    expect((new SymfonyProcess())->run(['tar', '-xf', $archive, '-C', $dir . '/tar'])->successful())->toBeTrue();
+
+    expect($process->calls)->toBe([])
+        ->and($root)->toBe($dir . '/native/pkg')
+        ->and(treeListing($dir . '/native'))->toBe(treeListing($dir . '/tar'))
+        ->and(file_get_contents($root . '/Tuffy私はガラスを食べられます.ttf'))->toBe('glass')
+        ->and(file_get_contents($root . '/deep/' . str_repeat('l', 110) . '.txt'))->toBe(str_repeat('L', 3000))
+        ->and(file_get_contents($root . '/pax/経路-' . str_repeat('p', 100) . '.txt'))->toBe('pax')
+        ->and(file_get_contents($root . '/hard.txt'))->toBe('r')
+        ->and(readlink($root . '/deep/up'))->toBe('../real.txt');
+})->with([
+    'gzip' => ['.tar.gz', fn (string $tar) => gzencode($tar)],
+    'bzip2' => ['.tar.bz2', fn (string $tar) => bzcompress($tar)],
+    'plain' => ['.tar', fn (string $tar) => $tar],
+])->skipOnWindows();
+
+it('extracts a tarball made by tar natively on Windows', function () {
+    $dir = Fixtures::tempDir();
+    mkdir($dir . '/src/pkg/a/b/c', 0777, true);
+    file_put_contents($dir . '/src/pkg/a/b/c/Tuffy私はガラスを食べられます.ttf', random_bytes(70000));
+    file_put_contents($dir . '/src/pkg/a/' . str_repeat('x', 150), 'long');
+    file_put_contents($dir . '/src/pkg/empty', '');
+    mkdir($dir . '/src/pkg/empty-dir');
+    Fixtures::tar($dir . '/pkg.tar.gz', $dir . '/src', 'pkg');
+
+    $process = new PhpBaremetal\Spec\Testing\FakeProcess();
+    (new Archive($process, 'Windows'))->extract($dir . '/pkg.tar.gz', $dir . '/native');
+
+    expect($process->calls)->toBe([])
+        ->and(treeListing($dir . '/native'))->toBe(treeListing($dir . '/src'));
+})->skipOnWindows();
+
+it('refuses unsafe tar members on Windows before writing anything', function (array $entries, string $member) {
+    $dir = Fixtures::tempDir();
+    $archive = writeTar($dir . '/evil.tar.gz', tarEntry('pkg/ok.txt', 'ok'), ...$entries);
+
+    expect(fn () => (new Archive(new PhpBaremetal\Spec\Testing\FakeProcess(), 'Windows'))->extract($archive, $dir . '/out'))
+        ->toThrow(PhpbmException::class, "cannot extract {$archive}: unsafe member '{$member}'");
+    expect(file_exists($dir . '/out/pkg'))->toBeFalse()
+        ->and(file_exists($dir . '/evil.txt'))->toBeFalse();
+})->with([
+    'dot-dot' => [[tarEntry('pkg/../../evil.txt', 'x')], 'pkg/../../evil.txt'],
+    'escaping symlink' => [[tarEntry('pkg/l', '', '2', '../../etc')], 'pkg/l'],
+    'member below a symlink' => [[tarEntry('pkg/l', '', '2', '..'), tarEntry('pkg/l/x', 'x')], 'pkg/l/x'],
+    'device' => [[tarEntry('pkg/dev', '', '3')], 'pkg/dev'],
+]);
+
+it('reports a truncated tar archive on Windows', function () {
+    $dir = Fixtures::tempDir();
+    $archive = $dir . '/cut.tar.gz';
+    file_put_contents($archive, gzencode(substr(tarEntry('pkg/f.txt', str_repeat('x', 2000)), 0, 1024)));
+
+    expect(fn () => (new Archive(new PhpBaremetal\Spec\Testing\FakeProcess(), 'Windows'))->extract($archive, $dir . '/out'))
+        ->toThrow(PhpbmException::class, "cannot extract {$archive}: truncated tar archive");
+});
+
+it('keeps extracting tar archives with tar outside Windows', function () {
+    $dir = Fixtures::tempDir();
+    $archive = writeTar($dir . '/pkg.tar.gz', tarEntry('pkg/f.txt', 'f'));
+    $process = (new PhpBaremetal\Spec\Testing\FakeProcess())->on('tar -xf', new PhpBaremetal\Spec\Sdk\ProcessResult(0, '', ''));
+
+    (new Archive($process, 'Linux'))->extract($archive, $dir . '/out');
+
+    expect($process->calls)->toBe([['tar', '-xf', $archive, '-C', $dir . '/out']]);
+});
+
+it('extracts xz tarballs with tar on Windows', function () {
+    $dir = Fixtures::tempDir();
+    file_put_contents($dir . '/pkg.tar.xz', "\xfd7zXZ\0rest");
+    // On a real Windows host Archive picks %SystemRoot%\System32\tar.exe; elsewhere the 'tar' on the PATH.
+    $system = (getenv('SystemRoot') ?: 'C:\\Windows') . '\\System32\\tar.exe';
+    $tar = is_file($system) ? $system : 'tar';
+    $process = (new PhpBaremetal\Spec\Testing\FakeProcess())->on($tar, new PhpBaremetal\Spec\Sdk\ProcessResult(0, '', ''));
+
+    (new Archive($process, 'Windows'))->extract($dir . '/pkg.tar.xz', $dir . '/out');
+
+    expect(end($process->calls))->toBe([$tar, '-xf', $dir . '/pkg.tar.xz', '-C', $dir . '/out']);
+});

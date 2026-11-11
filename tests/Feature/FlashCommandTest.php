@@ -89,3 +89,38 @@ it('flashes a smaller flash anyway with --force', function () {
     $this->artisan('flash', ['--port' => '/dev/x', '--force' => true])->assertExitCode(0);
     expect(Fixtures::calls($this->home))->toContain('flash /dev/x');
 });
+
+it('hands the microSD assets to the sync after flashing', function () {
+    $project = (string) getcwd();
+    @mkdir("{$project}/assets/photos", 0777, true);
+    copy(__DIR__ . '/../fixtures/images/1x1-opaque.png', "{$project}/assets/photos/beans.png");
+    Fixtures::project($project, ['assets' => [['dir' => 'assets/photos', 'storage' => 'microsd']]]);
+    Fixtures::toolchain($this->home, ['chips' => ['/dev/x' => 'demo']]);
+
+    $this->artisan('flash', ['--port' => '/dev/x'])->assertExitCode(0);
+    expect(array_slice(Fixtures::calls($this->home), 1))->toBe(['identify /dev/x', 'flash /dev/x', 'sync embedded /dev/x assets microsd:/sdcard/assets/photos/beans.sli']);
+});
+
+it('names the microSD assets when the sync after flashing fails', function () {
+    $project = (string) getcwd();
+    @mkdir("{$project}/assets/photos", 0777, true);
+    copy(__DIR__ . '/../fixtures/images/1x1-opaque.png', "{$project}/assets/photos/beans.png");
+    Fixtures::project($project, ['storage' => 'microsd', 'assets' => [['dir' => 'assets/photos', 'storage' => 'microsd']]]);
+    Fixtures::toolchain($this->home, ['chips' => ['/dev/x' => 'demo'], 'sync' => 'fail']);
+
+    $this->artisan('flash', ['--port' => '/dev/x'])
+        ->expectsOutputToContain('the firmware was flashed to /dev/x, but copying the sources and the microSD assets to the card failed (retry with `phpbm sync`)')
+        ->assertExitCode(1);
+});
+
+it('names only the microSD assets when the code is embedded', function () {
+    $project = (string) getcwd();
+    @mkdir("{$project}/assets/photos", 0777, true);
+    copy(__DIR__ . '/../fixtures/images/1x1-opaque.png', "{$project}/assets/photos/beans.png");
+    Fixtures::project($project, ['assets' => [['dir' => 'assets/photos', 'storage' => 'microsd']]]);
+    Fixtures::toolchain($this->home, ['chips' => ['/dev/x' => 'demo'], 'sync' => 'fail']);
+
+    $this->artisan('flash', ['--port' => '/dev/x'])
+        ->expectsOutputToContain('the firmware was flashed to /dev/x, but copying the microSD assets to the card failed (retry with `phpbm sync`)')
+        ->assertExitCode(1);
+});

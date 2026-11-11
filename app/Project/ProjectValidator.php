@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Project;
 
+use App\Build\AssetResolver;
 use App\PhpbmException;
 use PhpBaremetal\Spec\Sdk\Descriptor\PhpExtension;
 use PhpBaremetal\Spec\Sdk\Sdk;
@@ -41,6 +42,8 @@ final class ProjectValidator
         } elseif (!is_file($project->path($config->src) . '/' . $config->entry)) {
             $problems[] = "entry script {$config->src}/{$config->entry} does not exist";
         }
+
+        $this->assets($project, $sdk, $target, $problems);
 
         $extensions = $this->phpExtensions($project, $sdk, $target->php->minor, $problems);
 
@@ -101,6 +104,43 @@ final class ProjectValidator
         }
 
         return new Target($target->board, $target->chip, $target->runtime, $target->storage, $target->php, $options, $extensions);
+    }
+
+    /**
+     * The folders of extra.baremetal.assets exist and use a storage of the sdk that the board and the code allow.
+     *
+     * @param list<string> $problems
+     */
+    private function assets(Project $project, Sdk $sdk, Target $target, array &$problems): void
+    {
+        foreach ($project->manifest->project->assets->dirs as $asset) {
+            if (!is_dir($project->path($asset->dir))) {
+                $problems[] = "asset directory {$asset->dir} does not exist";
+            }
+            if (!isset($sdk->storages[$asset->storage]) || !isset(AssetResolver::MOUNTS[$asset->storage])) {
+                $known = array_keys(array_intersect_key($sdk->storages, AssetResolver::MOUNTS));
+                sort($known);
+                $problems[] = sprintf(
+                    "assets in %s: unknown storage '%s' (sdk %s %s has %s)",
+                    $asset->dir,
+                    $asset->storage,
+                    $sdk->descriptor->name,
+                    $sdk->descriptor->version,
+                    $known === [] ? 'none for assets' : implode(', ', $known),
+                );
+                continue;
+            }
+            if ($asset->storage === 'microsd' && !$target->board->has('microsd')) {
+                $problems[] = "assets in {$asset->dir} need a microSD slot, and {$target->board->name} has none";
+            }
+            if ($asset->storage === 'embedded' && $target->storage->id === 'microsd') {
+                $problems[] = "assets in {$asset->dir}: with the code on the microSD (extra.baremetal.storage 'microsd') "
+                    . "assets go on the microSD: use storage 'microsd'";
+            } elseif ($asset->storage === 'embedded' && $target->storage->id !== 'embedded') {
+                $problems[] = "assets in {$asset->dir}: storage 'embedded' puts assets into the flash image of the code, "
+                    . "which needs extra.baremetal.storage 'embedded' (it is '{$target->storage->id}')";
+            }
+        }
     }
 
     private function isPackage(Project $project, string $owner): bool

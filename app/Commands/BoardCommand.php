@@ -17,6 +17,7 @@ use App\Support\Paths;
 use PhpBaremetal\Spec\Manifest\SdkRequirement;
 use PhpBaremetal\Spec\Sdk\Descriptor\Board;
 use PhpBaremetal\Spec\Sdk\Sdk;
+use PhpBaremetal\Spec\SpecException;
 use PhpBaremetal\Spec\Support\Json;
 use stdClass;
 
@@ -55,9 +56,10 @@ final class BoardCommand extends PhpbmCommand
         $current = $baremetal['board'];
         $target = $this->targetBoard($sdk, $current);
 
+        $boardOverrides = is_array($baremetal['board-overrides'] ?? null) ? $baremetal['board-overrides'] : [];
         $plan = $target === null || $target === $current
-            ? $this->featuresPlan(self::board($sdk, $current), $required)
-            : $this->changePlan($sdk, $baremetal, $current, self::board($sdk, $target), $required);
+            ? $this->featuresPlan(self::board($sdk, $current)->withOverrides($boardOverrides), $required)
+            : $this->changePlan($sdk, $boardOverrides, $baremetal, $current, self::board($sdk, $target), $required);
 
         if ($plan->isEmpty()) {
             $this->line('nothing to change');
@@ -99,7 +101,7 @@ final class BoardCommand extends PhpbmCommand
             ?? throw new PhpbmException("board '{$id}' does not exist in sdk {$sdk->descriptor->name} {$sdk->descriptor->version}");
     }
 
-    /** 3.1: add or remove features of the current board. @param array<string,mixed> $required */
+    /** 3.1: add or remove features of the current board (with its overrides). @param array<string,mixed> $required */
     private function featuresPlan(Board $board, array $required): ChangePlan
     {
         $index = app(BoardPackages::class)->index($this->out(), (bool) $this->option('refresh'));
@@ -120,22 +122,44 @@ final class BoardCommand extends PhpbmCommand
     /**
      * 3.2: change the board. Every check runs before anything is written.
      *
+     * The overrides that add a block (they give its 'type') stay on any board that does not have it; an override
+     * of a block the new board lacks without a 'type', or with a 'type' other than the new board's, is dropped. The
+     * runtime, the storage and the features are checked against the new board with the overrides that stay.
+     *
+     * @param array<array-key,mixed> $overrides
      * @param array<string,mixed> $baremetal
      * @param array<string,mixed> $required
      */
-    private function changePlan(Sdk $sdk, array $baremetal, string $current, Board $board, array $required): ChangePlan
+    private function changePlan(Sdk $sdk, array $overrides, array $baremetal, string $current, Board $board, array $required): ChangePlan
     {
+        $missing = [];
+        $retyped = [];
+        foreach ($overrides as $block => $entry) {
+            $block = (string) $block;
+            $type = is_array($entry) && array_key_exists('type', $entry) ? $entry['type'] : null;
+            if (!$board->has($block)) {
+                if ($type === null) {
+                    $missing[] = $block;
+                }
+            } elseif ($type !== null && $type !== $board->peripherals[$block]['type']) {
+                $retyped[$block] = sprintf("%s ('%s', the board has '%s')", $block, is_scalar($type) ? (string) $type : json_encode($type), $board->peripherals[$block]['type']);
+            }
+        }
+        $unset = [...$missing, ...array_keys($retyped)];
+        $kept = array_diff_key($overrides, array_flip($unset));
+        $effective = $board->withOverrides($kept);
+
         foreach (['runtime', 'storage'] as $kind) {
             $id = $baremetal[$kind] ?? null;
             if (is_string($id)) {
                 $module = $kind === 'runtime' ? $sdk->runtime($id) : $sdk->storage($id);
-                BoardFit::check($kind, $id, $module, $board);
+                BoardFit::check($kind, $id, $module, $effective);
             }
         }
 
         $index = app(BoardPackages::class)->index($this->out(), (bool) $this->option('refresh')) ?? [];
-        $features = BoardFeatures::of($board, $index);
-        $old = isset($sdk->boards[$current]) ? BoardFeatures::of($sdk->boards[$current], $index) : [];
+        $features = BoardFeatures::of($effective, $index);
+        $old = isset($sdk->boards[$current]) ? BoardFeatures::of(self::withOverridesOrPlain($sdk->boards[$current], $overrides), $index) : [];
 
         $selectable = FeatureChoice::selectable($features);
         $chosen = $this->chooseFeatures($board, $features, $selectable);
@@ -155,17 +179,42 @@ final class BoardCommand extends PhpbmCommand
             $remove = array_values(array_diff($remove, $kept));
         }
 
-        $overrides = is_array($baremetal['board-overrides'] ?? null) ? array_keys($baremetal['board-overrides']) : [];
-        $unset = array_values(array_filter(array_map('strval', $overrides), static fn (string $block): bool => !$board->has($block)));
         if ($unset !== [] && $this->input->isInteractive()) {
-            $this->line("board-overrides of blocks board '{$board->id}' does not have: " . implode(', ', $unset));
+            if ($missing !== []) {
+                $this->line("board-overrides of blocks board '{$board->id}' does not have: " . implode(', ', $missing));
+            }
+            if ($retyped !== []) {
+                $this->line("board-overrides that change the type of a block of board '{$board->id}': " . implode(', ', $retyped));
+            }
             if (!confirm('Remove these overrides?', default: true)) {
-                throw new PhpbmException("the build fails with overrides of blocks board '{$board->id}' does not have ("
-                    . implode(', ', $unset) . '): remove them from extra.baremetal.board-overrides, or keep the board');
+                $why = [];
+                if ($missing !== []) {
+                    $why[] = "overrides of blocks board '{$board->id}' does not have (" . implode(', ', $missing) . ')';
+                }
+                if ($retyped !== []) {
+                    $why[] = "overrides that change the type of blocks of board '{$board->id}' (" . implode(', ', array_keys($retyped)) . ')';
+                }
+                throw new PhpbmException('the build fails with ' . implode(' and ', $why)
+                    . ': remove them from extra.baremetal.board-overrides, or keep the board');
             }
         }
 
         return new ChangePlan($board->id, $unset, $remove, $plan->require);
+    }
+
+    /**
+     * The old board with its overrides, for the features it brought; the plain board when the overrides do not fit
+     * it (the project could not build then anyway, and the change of board is what fixes it).
+     *
+     * @param array<array-key,mixed> $overrides
+     */
+    private static function withOverridesOrPlain(Board $board, array $overrides): Board
+    {
+        try {
+            return $board->withOverrides($overrides);
+        } catch (SpecException) {
+            return $board;
+        }
     }
 
     /**

@@ -110,3 +110,83 @@ it('reports project problems before building', function () {
         ->assertExitCode(1);
     expect(Fixtures::calls($this->home))->toBe([]);
 });
+
+it('builds the image of the embedded storage from the sources and the embedded assets', function () {
+    Fixtures::toolchain($this->home);
+    @mkdir($this->project . '/assets/ui/icons', 0777, true);
+    @mkdir($this->project . '/assets/photos', 0777, true);
+    copy(__DIR__ . '/../fixtures/images/8x8-spans.png', $this->project . '/assets/ui/icons/coffee.png');
+    copy(__DIR__ . '/../fixtures/images/1x1-opaque.sli', $this->project . '/assets/ui/ready.sli');
+    copy(__DIR__ . '/../fixtures/images/1x1-opaque.png', $this->project . '/assets/photos/beans.png');
+    file_put_contents($this->project . '/assets/ui/notes.txt', 'x');
+    Fixtures::project($this->project, ['env' => '.env', 'assets' => [
+        ['dir' => 'assets/ui', 'storage' => 'embedded'],
+        ['dir' => 'assets/photos', 'storage' => 'microsd'],
+    ]]);
+
+    $this->artisan('build')
+        ->expectsOutputToContain('asset ignored (not .png or .sli): assets/ui/notes.txt')
+        ->assertExitCode(0);
+
+    $staging = $this->project . '/.phpbm/build/app';
+    $images = __DIR__ . '/../fixtures/images';
+    $assets = json_decode((string) file_get_contents($this->project . '/.phpbm/build/assets.json'), true);
+    expect(file_get_contents($this->project . '/.phpbm/build/image-dir.txt'))->toBe($staging)
+        ->and(file_get_contents($this->project . '/.phpbm/build/app-src.txt'))->toBe($this->project . '/project-src')
+        ->and(array_map(fn ($a) => [$a['storage'], $a['board'], base64_decode($a['content'])], $assets))->toBe([
+            ['embedded', '/app/assets/ui/icons/coffee.sli', file_get_contents("{$images}/8x8-spans.sli")],
+            ['embedded', '/app/assets/ui/ready.sli', file_get_contents("{$images}/1x1-opaque.sli")],
+            ['microsd', '/sdcard/assets/photos/beans.sli', file_get_contents("{$images}/1x1-opaque.sli")],
+        ])
+        ->and(array_map(fn ($a) => str_starts_with($a['file'], '/'), $assets))->toBe([true, true, true])
+        ->and(file_get_contents("{$staging}/index.php"))->toBe("<?php echo 'hi';\n")
+        ->and(file_get_contents("{$staging}/assets/ui/icons/coffee.sli"))->toBe(file_get_contents(__DIR__ . '/../fixtures/images/8x8-spans.sli'))
+        ->and(file_get_contents("{$staging}/assets/ui/ready.sli"))->toBe(file_get_contents(__DIR__ . '/../fixtures/images/1x1-opaque.sli'))
+        ->and(is_dir("{$staging}/assets/photos"))->toBeFalse();
+});
+
+it('builds the image from the source folder itself without embedded assets', function () {
+    Fixtures::toolchain($this->home);
+    @mkdir($this->project . '/assets/photos', 0777, true);
+    copy(__DIR__ . '/../fixtures/images/1x1-opaque.png', $this->project . '/assets/photos/beans.png');
+    Fixtures::project($this->project, ['env' => '.env', 'assets' => [['dir' => 'assets/photos', 'storage' => 'microsd']]]);
+
+    $this->artisan('build')->assertExitCode(0);
+
+    $assets = json_decode((string) file_get_contents($this->project . '/.phpbm/build/assets.json'), true);
+    expect(file_get_contents($this->project . '/.phpbm/build/image-dir.txt'))->toBe($this->project . '/project-src')
+        ->and(file_get_contents($this->project . '/.phpbm/build/app-src.txt'))->toBe($this->project . '/project-src')
+        ->and(array_map(fn ($a) => [$a['storage'], $a['board']], $assets))->toBe([['microsd', '/sdcard/assets/photos/beans.sli']])
+        ->and(base64_decode($assets[0]['content']))->toBe(file_get_contents(__DIR__ . '/../fixtures/images/1x1-opaque.sli'))
+        ->and(is_dir($this->project . '/.phpbm/build/app'))->toBeFalse();
+});
+
+it('reports an asset problem before building', function () {
+    Fixtures::toolchain($this->home);
+    @mkdir($this->project . '/assets/ui', 0777, true);
+    copy(__DIR__ . '/../fixtures/images/1x1-opaque.png', $this->project . '/assets/ui/a.png');
+    copy(__DIR__ . '/../fixtures/images/1x1-opaque.sli', $this->project . '/assets/ui/a.sli');
+    Fixtures::project($this->project, ['env' => '.env', 'assets' => [['dir' => 'assets/ui', 'storage' => 'embedded']]]);
+
+    $this->artisan('build')
+        ->expectsOutputToContain('assets/ui/a.png and assets/ui/a.sli both become /app/assets/ui/a.sli')
+        ->assertExitCode(1);
+    expect(Fixtures::calls($this->home))->toBe([]);
+});
+
+it('keeps .phpbm out of the image when the sources are the project root', function () {
+    Fixtures::toolchain($this->home);
+    @mkdir($this->project . '/assets/ui', 0777, true);
+    copy(__DIR__ . '/../fixtures/images/1x1-opaque.png', $this->project . '/assets/ui/dot.png');
+    file_put_contents($this->project . '/index.php', "<?php echo 'root';\n");
+    Fixtures::project($this->project, ['env' => '.env', 'src' => '.', 'assets' => [['dir' => 'assets/ui', 'storage' => 'embedded']]]);
+
+    $this->artisan('build')->assertExitCode(0);
+    $this->artisan('build')->assertExitCode(0);
+
+    $staging = $this->project . '/.phpbm/build/app';
+    expect(file_get_contents($this->project . '/.phpbm/build/image-dir.txt'))->toBe($staging)
+        ->and(is_dir("{$staging}/.phpbm"))->toBeFalse()
+        ->and(is_file("{$staging}/assets/ui/dot.sli"))->toBeTrue()
+        ->and(file_get_contents("{$staging}/index.php"))->toBe("<?php echo 'root';\n");
+});

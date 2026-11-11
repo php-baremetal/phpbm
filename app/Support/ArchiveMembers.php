@@ -24,25 +24,17 @@ final class ArchiveMembers
     public static function checkTar(string $archive, Process $process, string $tar): void
     {
         $check = new self($archive);
-        $head = (string) @file_get_contents($archive, false, null, 0, 6);
-        $wrapper = match (true) {
-            str_starts_with($head, "\x1f\x8b") => 'compress.zlib://',
-            str_starts_with($head, 'BZh') && extension_loaded('bz2') => 'compress.bzip2://',
-            !str_starts_with($head, 'BZh') && !str_starts_with($head, "\xfd7zXZ\0") && !str_starts_with($head, "\x28\xb5\x2f\xfd") => '',
-            default => null,
-        };
-        if ($wrapper === null) {
+        if (TarReader::wrapper($archive) === null) {
             $check->checkTarListing($process, $tar);
             return;
         }
-        $stream = @fopen($wrapper . $archive, 'rb');
-        if ($stream === false) {
-            throw new PhpbmException("cannot extract {$archive}: cannot read it");
-        }
+        $reader = TarReader::open($archive);
         try {
-            $check->scanTar($stream);
+            foreach ($reader->members() as $member) {
+                $check->tarMember($member);
+            }
         } finally {
-            fclose($stream);
+            $reader->close();
         }
     }
 
@@ -73,57 +65,14 @@ final class ArchiveMembers
         }
     }
 
-    /** @param resource $stream */
-    private function scanTar($stream): void
+    /** @param array{name:string, type:string, kind:?string, target:string} $member */
+    private function tarMember(array $member): void
     {
-        $longName = null;
-        $longLink = null;
-        $pax = [];
-        while (true) {
-            $header = $this->read($stream, 512);
-            if ($header === '' || trim($header, "\0") === '') {
-                return;
-            }
-            if (strlen($header) !== 512) {
-                throw new PhpbmException("cannot extract {$this->archive}: truncated tar header");
-            }
-            $size = $this->tarNumber(substr($header, 124, 12));
-            $type = $header[156];
-            if (in_array($type, ['L', 'K', 'x', 'g'], true)) {
-                $data = $this->read($stream, $size);
-                $this->read($stream, (512 - $size % 512) % 512);
-                match ($type) {
-                    'L' => $longName = rtrim($data, "\0"),
-                    'K' => $longLink = rtrim($data, "\0"),
-                    'x' => $pax = $this->paxRecords($data),
-                    'g' => null,
-                };
-                continue;
-            }
-            $name = rtrim(substr($header, 0, 100), "\0");
-            if (substr($header, 257, 6) === "ustar\0" && ($prefix = rtrim(substr($header, 345, 155), "\0")) !== '') {
-                $name = "{$prefix}/{$name}";
-            }
-            $name = $pax['path'] ?? $longName ?? $name;
-            $target = $pax['linkpath'] ?? $longLink ?? rtrim(substr($header, 157, 100), "\0");
-            if (isset($pax['size']) && ctype_digit($pax['size'])) {
-                $size = (int) $pax['size'];
-            }
-            [$longName, $longLink, $pax] = [null, null, []];
-
-            $kind = match ($type) {
-                '0', "\0", '7', 'S' => 'file',
-                '5', 'D' => 'dir',
-                '1' => 'hardlink',
-                '2' => 'symlink',
-                default => null,
-            };
-            if ($kind === null) {
-                $this->refuse($name, in_array($type, ['3', '4', '6'], true) ? 'device or fifo entry' : "unsupported tar entry type '{$type}'");
-            }
-            $this->member($name, $kind, $kind === 'hardlink' || $kind === 'symlink' ? $target : null);
-            $this->skip($stream, $kind === 'file' || $type === 'D' ? $size : 0);
+        ['name' => $name, 'type' => $type, 'kind' => $kind] = $member;
+        if ($kind === null) {
+            $this->refuse($name, in_array($type, ['3', '4', '6'], true) ? 'device or fifo entry' : "unsupported tar entry type '{$type}'");
         }
+        $this->member($name, $kind, $kind === 'hardlink' || $kind === 'symlink' ? $member['target'] : null);
     }
 
     /** Fallback for compressions PHP cannot read (xz, zstd): names from `tar -tf`, and no links at all. */
@@ -204,59 +153,6 @@ final class ArchiveMembers
     private function refuse(string $member, string $reason): never
     {
         throw new PhpbmException("cannot extract {$this->archive}: unsafe member '{$member}' ({$reason})");
-    }
-
-    private function tarNumber(string $field): int
-    {
-        if ((ord($field[0]) & 0x80) !== 0) {
-            $value = ord($field[0]) & 0x7f;
-            for ($i = 1; $i < strlen($field); $i++) {
-                $value = ($value << 8) | ord($field[$i]);
-            }
-            return $value;
-        }
-        return (int) octdec(trim($field, " \0") ?: '0');
-    }
-
-    /** @return array<string,string> */
-    private function paxRecords(string $data): array
-    {
-        $records = [];
-        $offset = 0;
-        while ($offset < strlen($data) && preg_match('/\G(\d+) /', $data, $m, 0, $offset) === 1) {
-            $record = substr($data, $offset + strlen($m[0]), (int) $m[1] - strlen($m[0]) - 1);
-            [$key, $value] = array_pad(explode('=', $record, 2), 2, '');
-            $records[$key] = $value;
-            $offset += max(1, (int) $m[1]);
-        }
-        return $records;
-    }
-
-    /** @param resource $stream */
-    private function read($stream, int $length): string
-    {
-        $data = '';
-        while (strlen($data) < $length && !feof($stream)) {
-            $chunk = fread($stream, $length - strlen($data));
-            if ($chunk === false || $chunk === '') {
-                break;
-            }
-            $data .= $chunk;
-        }
-        return $data;
-    }
-
-    /** @param resource $stream */
-    private function skip($stream, int $size): void
-    {
-        $remaining = $size + (512 - $size % 512) % 512;
-        while ($remaining > 0) {
-            $chunk = $this->read($stream, min($remaining, 1 << 20));
-            if ($chunk === '') {
-                throw new PhpbmException("cannot extract {$this->archive}: truncated tar archive");
-            }
-            $remaining -= strlen($chunk);
-        }
     }
 
     /** @return list<array{string,bool}> name and "is a unix symlink" of each entry of the zip central directory */

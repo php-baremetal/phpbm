@@ -65,3 +65,48 @@ it('reports a failed sync', function () {
         ->expectsOutputToContain('the board did not answer the sync')
         ->assertExitCode(1);
 });
+
+it('says when the embedded assets changed since the last build', function () {
+    $project = Fixtures::project(Fixtures::tempDir(), ['assets' => [['dir' => 'assets/ui', 'storage' => 'embedded']]]);
+    @mkdir("{$project}/assets/ui", 0777, true);
+    copy(__DIR__ . '/../fixtures/images/8x8-spans.png', "{$project}/assets/ui/logo.png");
+    chdir($project);
+    Fixtures::toolchain($this->home, ['ports' => ['/dev/ttyDEMO']]);
+    $this->artisan('build')->assertExitCode(0);
+
+    $this->artisan('sync')->doesntExpectOutputToContain('phpbm flash')->assertExitCode(0);
+
+    copy(__DIR__ . '/../fixtures/images/icon-48.png', "{$project}/assets/ui/logo.png");
+    $this->artisan('sync')
+        ->expectsOutputToContain('the embedded assets changed since the last build: run `phpbm flash` to put them on the board')
+        ->assertExitCode(0);
+});
+
+it('hands the prepared microSD assets to the sync', function () {
+    $project = Fixtures::project(Fixtures::tempDir(), ['assets' => [['dir' => 'assets/photos', 'storage' => 'microsd']]]);
+    @mkdir("{$project}/assets/photos/2026", 0777, true);
+    copy(__DIR__ . '/../fixtures/images/8x8-spans.png', "{$project}/assets/photos/2026/beans.png");
+    copy(__DIR__ . '/../fixtures/images/1x1-opaque.sli', "{$project}/assets/photos/cup.sli");
+    chdir($project);
+    Fixtures::toolchain($this->home, ['ports' => ['/dev/ttyDEMO']]);
+
+    $this->artisan('sync')->assertExitCode(0);
+
+    expect(Fixtures::calls($this->home))->toBe(['sync embedded /dev/ttyDEMO assets microsd:/sdcard/assets/photos/2026/beans.sli,microsd:/sdcard/assets/photos/cup.sli']);
+    $assets = json_decode((string) file_get_contents($this->home->toolchain('demo') . '/sync-assets.json'), true);
+    expect(base64_decode($assets[0]['content']))->toBe(file_get_contents(__DIR__ . '/../fixtures/images/8x8-spans.sli'))
+        ->and($assets[1]['file'])->toBe("{$project}/assets/photos/cup.sli");
+});
+
+it('says when the embedded assets were never built', function () {
+    $project = Fixtures::project(Fixtures::tempDir(), ['assets' => [['dir' => 'assets/ui', 'storage' => 'embedded']]]);
+    @mkdir("{$project}/assets/ui", 0777, true);
+    copy(__DIR__ . '/../fixtures/images/8x8-spans.png', "{$project}/assets/ui/logo.png");
+    chdir($project);
+    Fixtures::toolchain($this->home, ['ports' => ['/dev/ttyDEMO']]);
+
+    $this->artisan('sync')
+        ->expectsOutputToContain('the embedded assets are not built yet: run `phpbm flash` to put them on the board')
+        ->doesntExpectOutputToContain('changed since the last build')
+        ->assertExitCode(0);
+});

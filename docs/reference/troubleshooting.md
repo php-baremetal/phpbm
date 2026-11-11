@@ -49,4 +49,4 @@ command with `-vv` to get the full trace.
 | `board '…' uses esp32s3, but the chip on … is esp32p4` | Wrong board in `extra.baremetal.board`, or wrong port. `phpbm discover` shows what is connected. |
 | `board '…' needs 8MB of flash, but the chip on … has 4MB` | The board in `extra.baremetal.board` has more flash than the chip: pick the variant with the chip's flash (`phpbm discover` shows it). |
 | `no esp32 chip answered on …` | Hold BOOT while pressing RESET to enter download mode, then flash again. `--force` flashes without the check. |
-| `the firmware was flashed …, but copying the sources to the card failed` | Check the card, then `phpbm sync`. |
+| `the firmware was flashed …, but copying the sources (or the microSD assets) to the card failed` | Check the card, then `phpbm sync`. |

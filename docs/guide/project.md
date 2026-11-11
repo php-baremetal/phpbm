@@ -60,17 +60,18 @@ next: { label: 'SDKs and phpbm.lock', href: './sdks.md' }
 | `entry` | no | Entry script inside `src`, default `index.php`. |
 | `env` | no | A `.env` file whose values the firmware exposes as `$_ENV` and `getenv()`. |
 | `options` | no | SDK, runtime, storage, PHP-extension and installed-package options, e.g. `{ "power-save": "on" }`. |
-| `board-overrides` | no | Changes to the board's peripheral blocks, e.g. other pins for a block. The block's `type` cannot change. |
+| `board-overrides` | no | Changes to the board's peripheral blocks, e.g. other pins for a block, or a block the board does not have, written whole with its `type` (e.g. a microSD slot on a generic board). The `type` of a block the board has cannot change. |
 
 Installed native packages may declare options of their own (in their `extra.baremetal.options`); they follow the same
 rules as the SDK's, and phpbm names the package in its messages.
 
 phpbm checks all of them against the SDK before it builds: an unknown option lists the accepted ones, a
-runtime the board cannot run names the missing capability, a missing package names the `composer require`.
+runtime the board cannot run names the missing capability, a missing package names the `composer require`. The
+board they are checked against is the board after `board-overrides`, so a block the overrides add counts.
 
 To change the board, or to add or remove the board's features (display, LED, I2C bus...), run `phpbm board`:
 it checks that the runtime and the storage fit the new board, offers the new board's features, drops the
-`board-overrides` of blocks the new board does not have and runs Composer. See
+`board-overrides` the new board cannot take (keeping those that add a block) and runs Composer. See
 [phpbm board](../commands/project.md#board).
 
 <!-- @callout variant="note" title="After changing extra" -->
@@ -126,6 +127,66 @@ Fonts need `php-baremetal/ext-display`. Errors:
 | warning `font '<name>': <n> characters not in the source (...)` | `chars` lists characters the source lacks: they are skipped |
 | `font file '<path>' is not a GFX font header` | a project or package `.h` the SDK cannot read |
 | `fonts need php-baremetal/ext-display: composer require php-baremetal/ext-display` | fonts used without ext-display |
+
+## assets
+
+Images for Slate live in asset folders. `extra.baremetal.assets` lists them, each with the storage that holds
+it on the board; the storage of an asset folder is separate from the storage of the code
+(`extra.baremetal.storage`), except that with the code on the microSD the assets go on the microSD too.
+
+<!-- @code-block language="JSON" label="composer.json" -->
+```json
+"assets": [
+  { "dir": "assets/ui",     "storage": "embedded" },
+  { "dir": "assets/photos", "storage": "microsd" }
+]
+```
+<!-- @endcode-block -->
+
+- `dir`: a folder of the project, relative to its root, subfolders included. Two entries cannot name the same
+  folder or one inside the other.
+- `storage`: `embedded` or `microsd`.
+
+phpbm takes the `.png` files and turns them into `.sli` images; `.sli` files (made with `phpbm image:convert`)
+are taken as they are. Other files are skipped with a warning. On the board a file keeps its path in the
+project, under the mount point of its storage, with `.png` changed to `.sli`:
+
+| In the project | `storage` | On the board |
+| --- | --- | --- |
+| `assets/ui/icons/coffee.png` | `embedded` | `/app/assets/ui/icons/coffee.sli` |
+| `assets/photos/beans.png` | `microsd` | `/sdcard/assets/photos/beans.sli` |
+
+The PHP code opens the images by these paths.
+
+- `embedded`: the images go into the read-only image of the code in flash, next to the sources, which are
+  mounted on `/app` too. phpbm puts the sources and the converted images together in `.phpbm/build/app` and
+  hands that folder to the SDK as the content of the flash image; the SDK sizes the `storage` partition on it.
+  They change only with `phpbm flash`: when they changed since the last build, or were never built,
+  `phpbm sync` says so (it does not notice a removed image, which stays in the flash image until the next
+  `phpbm flash`). This storage needs the code on `embedded` storage too.
+- `microsd`: the images go on the microSD card, and the board needs a microSD slot. `phpbm flash` (after
+  flashing) and `phpbm sync` copy them to the card through the SDK, after the sources when the code is on the
+  microSD too. Only the files that changed are copied, and files on the card are deleted only inside the
+  declared asset folders: other files on the card stay.
+
+`phpbm build`, `phpbm flash` and `phpbm sync` check the PNG files every time. The converted images
+are cached in `~/.phpbm/cache/assets`, keyed by the content of the PNG and the converter version: a file is
+converted again only when it changes. `phpbm cache:clear` empties the cache.
+
+Errors:
+
+| Message | When |
+| --- | --- |
+| `asset directory <dir> does not exist` | the folder of an entry is missing |
+| `assets in <dir>: unknown storage '<storage>' (sdk <name> <version> has ...)` | the SDK has no such storage for assets |
+| `assets in <dir> need a microSD slot, and <board> has none` | `microsd` assets on a board without a microSD slot |
+| `assets in <dir>: with the code on the microSD (extra.baremetal.storage 'microsd') assets go on the microSD: use storage 'microsd'` | `embedded` assets with the code on the microSD |
+| `assets in <dir>: storage 'embedded' puts assets into the flash image of the code, which needs extra.baremetal.storage 'embedded' (...)` | `embedded` assets with the code on another storage |
+| `<file1> and <file2> both become <path>` | two files give the same image, such as `a.png` and `a.sli` (names compare without case, as on the board) |
+| `<asset> becomes <path>, which is also the source file <file>` | an `embedded` image would take the place of a source file |
+| `<path>: not a .sli image (bad header)` | a `.sli` file that is not a `.sli` image |
+| `<path>: <problem>` | a PNG phpbm cannot read |
+| warning `asset ignored (not .png or .sli): <path>` | a file that is neither `.png` nor `.sli` |
 
 ## Options of the esp32 SDK
 

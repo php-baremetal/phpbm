@@ -456,3 +456,73 @@ it('fails in features mode only when the registry cannot be read', function () {
         ->expectsOutputToContain('the list of board packages is not available')
         ->assertExitCode(1);
 });
+
+const BC_SD = ['type' => 'spi', 'cs' => 10, 'sclk' => 12, 'mosi' => 11, 'miso' => 13];
+
+it('keeps the overrides that add a block when the board changes', function () {
+    boardProject($this->dir, ['board-overrides' => ['microsd' => BC_SD, 'display' => ['backlight' => 5]]], [BC_DISPLAY => '^1.0']);
+
+    $this->artisan('board', ['board' => 'demo-net', '--no-interaction' => true])
+        ->expectsOutputToContain('board: demo-net')
+        ->assertExitCode(0);
+
+    expect(composerCalls($this->log))->toBe([
+        'config extra.baremetal.board demo-net',
+        'config --json extra.baremetal.board-overrides {"microsd":' . json_encode(BC_SD) . '}',
+        'remove ' . BC_DISPLAY,
+    ])->and(composerJson($this->dir)['extra']['baremetal']['board-overrides'])->toBe(['microsd' => BC_SD]);
+});
+
+it('checks the storage against the new board with the blocks the overrides add', function () {
+    boardProject($this->dir, ['board' => 'demo-board', 'storage' => 'microsd', 'board-overrides' => ['microsd' => BC_SD]]);
+
+    $this->artisan('board', ['board' => 'demo-net', '--no-interaction' => true])
+        ->expectsOutputToContain('board: demo-net')
+        ->assertExitCode(0);
+
+    expect(composerCalls($this->log))->toBe(['config extra.baremetal.board demo-net']);
+});
+
+it('still refuses a board without the block the storage needs when no override adds it', function () {
+    boardProject($this->dir, ['board' => 'demo-board', 'storage' => 'microsd', 'board-overrides' => ['microsd' => ['cs' => 5]]]);
+
+    $this->artisan('board', ['board' => 'demo-net', '--no-interaction' => true])
+        ->expectsOutputToContain("storage 'microsd' needs microsd, but board 'demo-net' has none")
+        ->assertExitCode(1);
+});
+
+it('drops an override whose type differs from the block of the new board', function () {
+    boardProject($this->dir, ['board' => 'demo-board', 'board-overrides' => ['network' => ['type' => 'w5500', 'cs' => 3], 'microsd' => ['cs' => 5]]]);
+
+    $this->artisan('board', ['board' => 'demo-net', '--no-interaction' => true])
+        ->expectsOutputToContain('board: demo-net')
+        ->assertExitCode(0);
+
+    expect(composerCalls($this->log))->toBe([
+        'config extra.baremetal.board demo-net',
+        'config --unset extra.baremetal.board-overrides',
+    ]);
+});
+
+it('asks before dropping an override whose type differs from the block of the new board', function () {
+    $file = boardProject($this->dir, ['board' => 'demo-board', 'board-overrides' => ['network' => ['type' => 'w5500', 'cs' => 3]]]);
+    $before = file_get_contents($file);
+    $this->env = app()['env'];
+    app()['env'] = 'testing';
+
+    $this->artisan('board', ['board' => 'demo-net'])
+        ->expectsOutputToContain("board-overrides that change the type of a block of board 'demo-net': network ('w5500', the board has 'wifi')")
+        ->expectsConfirmation('Remove these overrides?', 'no')
+        ->expectsOutputToContain("the build fails with overrides that change the type of blocks of board 'demo-net' (network)")
+        ->assertExitCode(1);
+
+    expect(file_get_contents($file))->toBe($before);
+});
+
+it('offers the feature of a block the overrides add', function () {
+    boardProject($this->dir, ['board' => 'demo-net', 'board-overrides' => ['display' => ['type' => 'st77916']]]);
+
+    $this->artisan('board', ['--features' => 'display', '--no-interaction' => true])->assertExitCode(0);
+
+    expect(composerCalls($this->log))->toBe(['require ' . BC_DISPLAY]);
+});

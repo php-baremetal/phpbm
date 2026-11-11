@@ -1,6 +1,6 @@
 ---
 eyebrow: 'phpbm · Commands'
-lede:    'The commands that work on a project: create it, build it, put it on the board and talk to it. All but init, discover and font:bake run in the project directory.'
+lede:    'The commands that work on a project: create it, build it, put it on the board and talk to it. All but init, discover, font:bake and image:convert run in the project directory.'
 see_also:
   - { href: './sdk.md', meta: 'Commands' }
   - { href: '../guide/project.md', meta: 'Guide' }
@@ -119,10 +119,14 @@ phpbm board -n --features=led   # keep only the LED: remove the other feature pa
 <!-- @endcode-block -->
 
 With `board` (or `--change`), phpbm first checks that the board exists in the project's SDK and that the
-project's runtime and storage fit it, before it changes anything. Then it offers the features of the new board,
-all checked, and lists the installed feature packages the new board does not use, checked for removal. Overrides
-in `extra.baremetal.board-overrides` of blocks the new board does not have are listed too: phpbm asks to remove
-them, because the build would fail with them (with `-n` it removes them). Then it runs, in this order:
+project's runtime and storage fit it, before it changes anything. The new board is taken with the overrides in
+`extra.baremetal.board-overrides` that stay on it: an override that adds a block (it gives the block's `type`)
+stays on any board that does not have that block, so a microSD slot added on the old board still counts for
+`"storage": "microsd"`. Then it offers the features of the new board, all checked (a block added by an override
+included), and lists the installed feature packages the new board does not use, checked for removal. The overrides
+the new board cannot take are listed too: those without a `type` for a block the new board does not have, and
+those whose `type` differs from the new board's block. phpbm asks to remove them, because the build would fail with
+them (with `-n` it removes them). Then it runs, in this order:
 
 1. `composer config extra.baremetal.board <id>`;
 2. when overrides are removed, `composer config --json extra.baremetal.board-overrides '<the overrides left>'`, or
@@ -177,7 +181,7 @@ project under `~/.phpbm/cache/trees`.
 <!-- @method name="phpbm flash [-p port] [--force]" -->
 
 Builds if needed, reads the chip on the port and flashes. With `microsd` storage it then copies the sources to
-the card, like `phpbm sync`.
+the card, and with `microsd` assets the converted images, like `phpbm sync`.
 
 Before flashing it checks the chip against the board: the chip must be the board's, and its flash must be at
 least as large as the board's `flash` (a firmware built for 8MB does not start on a 4MB chip). When the chip
@@ -206,9 +210,11 @@ need to flash again.
 
 <!-- @method name="phpbm sync [-p port]" -->
 
-Copies the source directory to the board's microSD card over the serial port, without building or flashing.
-For `microsd` storage only; with `embedded` storage it says there is nothing to sync. The env file is never
-copied. The firmware must already be on the board.
+Copies files to the board's microSD card over the serial port, without building or flashing: the source
+directory when the code storage is `microsd`, and the converted images of `microsd` assets (see
+[assets](../guide/project.md#assets)) whatever the storage of the code. With `embedded` storage and no `microsd`
+assets it says there is nothing to sync. The env file is never copied. The firmware must already be on the board.
+`embedded` assets change only with `phpbm flash`, and sync says when they changed since the last build.
 
 ## monitor
 
@@ -295,3 +301,44 @@ phpbm font:bake fonts-src/Roboto.ttf --name=title --size=28 --bpp=2 --chars="Hom
 
 The bitmap of one font must stay within 64 KB (GFX glyph offsets are 16-bit): a larger one stops with
 `font '<name>' is larger than 64 KB: use fewer characters or a smaller size`.
+
+## image:convert
+
+<!-- @method name="phpbm image:convert <input> <output>" -->
+
+Turns a PNG into a `.sli` image, the format Slate (`php-baremetal/ext-slate`) draws without decoding: rows of
+spans (transparent, one repeated color, different colors, semi-transparent) in the RGB565 colors of the screen,
+with a table of rows so a band of the screen reads only its rows. Use it for images you put on the board by hand,
+for example on the microSD. It works outside a project too, writes `<output>` (creating its folder, replacing an
+existing file) and prints `<output> (<width>x<height>, <bytes> bytes)`.
+
+Every PNG is accepted: gray, RGB, palette (with or without transparency), gray with alpha and RGBA, at 1 to 16
+bits per channel (16-bit channels keep their high 8 bits), interlaced or not. Width and height must be 1..32767.
+Colors are reduced to RGB565 with Slate's 4×4 ordered dither, anchored at the top-left corner of the image, so
+gradients and photos show no bands. The same PNG always gives the same bytes, and the board, when it decodes a PNG
+itself, follows the same rule.
+
+<!-- @params heading="Arguments" -->
+<!-- @param name="input" type="path" -->
+The PNG file.
+<!-- @endparam -->
+<!-- @param name="output" type="path" -->
+The `.sli` file to write.
+<!-- @endparam -->
+<!-- @endparams -->
+
+<!-- @code-block language="Bash" label="an image for the microSD" -->
+```bash
+phpbm image:convert art/beans.png sdcard/assets/photos/beans.sli
+```
+<!-- @endcode-block -->
+
+A file that cannot be read stops with the path and the reason, and exit code 1: `<input>: file not found`,
+`<input>: not a file`, `<input>: not a PNG file (bad signature)`, `<input>: bad CRC in chunk IDAT`,
+`<input>: size 40000x1 is out of 1..32767` and so on.
+
+The conversion holds the whole image in memory, about 13 bytes per pixel. Before decoding, phpbm checks that
+PHP's `memory_limit` leaves enough and otherwise stops with `size <w>x<h> is too large to convert: it needs about
+<n> MB and PHP can use <m> MB more (memory_limit 128M); raise it (php -d memory_limit=<k>M) or use a smaller image`.
+With the usual 128M an image of about 2300×2300 converts in the worst case (larger ones when they compress well); a 1024×600 background needs about 9 MB.
+Image data that inflates to more than the header's size stops with `image data is too long` as soon as it does.

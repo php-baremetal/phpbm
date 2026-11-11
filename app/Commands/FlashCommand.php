@@ -10,6 +10,7 @@ use App\PhpbmException;
 use App\Project\ConductorCheck;
 use App\Project\Project;
 use App\Support\FlashSize;
+use PhpBaremetal\Spec\Sdk\BuildPlan;
 
 final class FlashCommand extends PhpbmCommand
 {
@@ -43,10 +44,27 @@ final class FlashCommand extends PhpbmCommand
         try {
             $build->driver->sync($build->plan, $port, $out);
         } catch (\Throwable $e) {
-            throw new PhpbmException("the firmware was flashed to {$port->path}, but copying the sources to the card failed (retry with `phpbm sync`): {$e->getMessage()}", 0, $e);
+            throw new PhpbmException("the firmware was flashed to {$port->path}, but copying {$this->cardFiles($build->plan)} to the card failed (retry with `phpbm sync`): {$e->getMessage()}", 0, $e);
         }
         $this->info("flashed {$port->path}");
 
         return self::SUCCESS;
+    }
+
+    /** What the sync copies to the card: the sources (code on the microSD) and/or the microSD assets. */
+    private function cardFiles(BuildPlan $plan): string
+    {
+        $parts = [];
+        if ($plan->storage->id === 'microsd') {
+            $parts[] = 'the sources';
+        }
+        foreach ($plan->assets as $asset) {
+            if ($asset->storage === 'microsd') {
+                $parts[] = 'the microSD assets';
+                break;
+            }
+        }
+
+        return $parts === [] ? 'the files' : implode(' and ', $parts);
     }
 }

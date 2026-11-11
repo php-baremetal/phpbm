@@ -12,6 +12,7 @@ use App\Sdk\DriverFactory;
 use App\Sdk\SdkResolver;
 use PhpBaremetal\Spec\Sdk\BuildPlan;
 use PhpBaremetal\Spec\Sdk\Output;
+use PhpBaremetal\Spec\Sdk\PreparedAsset;
 
 final readonly class Builder
 {
@@ -21,13 +22,14 @@ final readonly class Builder
         private SourceTree $sources,
         private DriverFactory $drivers,
         private FontResolver $fonts,
+        private AssetResolver $assets,
     ) {
     }
 
     public function build(Project $project, Output $out, bool $clean = false): Build
     {
         $target = $this->plan($project, $out, $clean);
-        $plan = $this->withSources($target->plan, $out);
+        $plan = $this->withSources($this->withAssets($target->plan, $target->assets), $out);
 
         return new Build($target->driver, $plan, $target->driver->build($plan, $out));
     }
@@ -50,6 +52,11 @@ final readonly class Builder
         }
 
         $fonts = $this->fonts->resolve($project, $out);
+        $assets = $this->assets->plan($config, $project->dir, $out);
+        $prepared = array_map(
+            fn (array $entry): PreparedAsset => new PreparedAsset($entry['storage'], $entry['board'], $this->assets->prepare($entry)),
+            $assets,
+        );
 
         $plan = new BuildPlan(
             $project->dir,
@@ -68,9 +75,52 @@ final readonly class Builder
             $target->options,
             $target->phpExtensions,
             fonts: $fonts,
+            assets: $prepared,
         );
 
-        return new Target($driver, $plan);
+        return new Target($driver, $plan, $assets);
+    }
+
+    /** Where the image of the embedded storage is put together when the project has embedded assets. */
+    public static function stagingDir(BuildPlan $plan): string
+    {
+        return $plan->buildDir . '/app';
+    }
+
+    /**
+     * With embedded assets, the image of the embedded storage holds the sources and the converted assets: they
+     * are staged in one folder that the plan names as its image folder (the SDK images and sizes imageDir()).
+     *
+     * @param list<array{source:string, board:string, storage:string}> $assets
+     */
+    private function withAssets(BuildPlan $plan, array $assets): BuildPlan
+    {
+        if (AssetResolver::embedded($assets) === []) {
+            return $plan;
+        }
+        $staging = self::stagingDir($plan);
+        $this->assets->stage($plan->srcDir(), $assets, $staging);
+
+        return new BuildPlan(
+            $plan->projectDir,
+            $plan->manifest,
+            $plan->sdk,
+            $plan->board,
+            $plan->chip,
+            $plan->runtime,
+            $plan->storage,
+            $plan->php,
+            $plan->phpSourceDir,
+            $plan->sourceDirs,
+            $plan->env,
+            $plan->buildDir,
+            $plan->clean,
+            $plan->options,
+            $plan->phpExtensions,
+            fonts: $plan->fonts,
+            assets: $plan->assets,
+            imageDir: $staging,
+        );
     }
 
     /** The plan with the PHP source tree and the extensions' external sources prepared (only a build needs them). */
@@ -98,6 +148,8 @@ final readonly class Builder
             $plan->options,
             $plan->phpExtensions,
             fonts: $plan->fonts,
+            assets: $plan->assets,
+            imageDir: $plan->imageDir,
         );
     }
 }

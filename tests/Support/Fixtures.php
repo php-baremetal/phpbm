@@ -223,6 +223,9 @@ final class Driver implements \PhpBaremetal\Spec\Sdk\Driver
             . ($plan->fonts === [] ? '' : ' fonts ' . implode(',', array_keys($plan->fonts))));
         @mkdir($plan->buildDir, 0777, true);
         copy($plan->phpSourceDir . '/main/php.h', $plan->buildDir . '/app.bin');
+        file_put_contents($plan->buildDir . '/app-src.txt', $plan->srcDir());
+        file_put_contents($plan->buildDir . '/image-dir.txt', $plan->imageDir());
+        file_put_contents($plan->buildDir . '/assets.json', json_encode(self::assets($plan)));
         $out->step('demo build');
         return new Artifacts($plan->buildDir, [0x10000 => $plan->buildDir . '/app.bin']);
     }
@@ -234,7 +237,9 @@ final class Driver implements \PhpBaremetal\Spec\Sdk\Driver
 
     public function sync(BuildPlan $plan, Port $port, Output $out): bool
     {
-        $this->log("sync {$plan->storage->id} " . $port->path);
+        $this->log("sync {$plan->storage->id} " . $port->path
+            . ($plan->assets === [] ? '' : ' assets ' . implode(',', array_map(fn ($a) => "{$a->storage}:{$a->boardPath}", $plan->assets))));
+        file_put_contents($this->context->toolchainDir . '/sync-assets.json', json_encode(self::assets($plan)));
         if (($this->config()['sync'] ?? null) === 'fail') {
             throw new \PhpBaremetal\Spec\SpecException('the board did not answer the sync');
         }
@@ -258,6 +263,12 @@ final class Driver implements \PhpBaremetal\Spec\Sdk\Driver
     public function ports(): array
     {
         return array_map(static fn (string $path) => new Port($path, 'demo serial'), $this->config()['ports'] ?? []);
+    }
+
+    /** @return list<array{storage:string, board:string, file:string, content:string}> */
+    private static function assets(BuildPlan $plan): array
+    {
+        return array_map(fn ($a) => ['storage' => $a->storage, 'board' => $a->boardPath, 'file' => $a->file, 'content' => base64_encode((string) file_get_contents($a->file))], $plan->assets);
     }
 
     private function config(): array

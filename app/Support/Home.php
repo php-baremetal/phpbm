@@ -57,6 +57,12 @@ final readonly class Home
         return $this->cache() . '/downloads';
     }
 
+    /** Converted assets (.sli), named by the hash of their source. */
+    public function assets(): string
+    {
+        return $this->cache() . '/assets';
+    }
+
     public function fonts(): string
     {
         return $this->cache() . '/fonts';
