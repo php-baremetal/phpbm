@@ -3,6 +3,7 @@
 ## 0.3.1
 
 - Fixed: phpbm 0.3.0 got php-baremetal/spec 1.3.0 (in the PHAR and through Composer), whose published copy still refused a board-overrides entry for a block the board does not have ("board-overrides: board '...' has no 'microsd' to override"), so adding a block did not work. phpbm now requires php-baremetal/spec 1.3.1, which adds the block when the entry gives its `type`.
+- Fixed: two tests compared paths with `/` only, so the test run failed on Windows and stopped the release before the PHAR was built (0.3.0 has no PHAR for this reason). The PHAR of 0.3.1 carries the 0.3.0 changes too.
 
 ## 0.3.0
 

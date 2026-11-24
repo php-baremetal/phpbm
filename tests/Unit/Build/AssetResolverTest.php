@@ -187,7 +187,7 @@ it('stages the sources and the embedded assets into one folder, copying only wha
 
     $files = [];
     foreach (new RecursiveIteratorIterator(new RecursiveDirectoryIterator($staging, FilesystemIterator::SKIP_DOTS)) as $file) {
-        $files[] = substr($file->getPathname(), strlen($staging) + 1);
+        $files[] = str_replace(DIRECTORY_SEPARATOR, '/', substr($file->getPathname(), strlen($staging) + 1));
     }
     sort($files);
     expect($files)->toBe(['assets/ui/icons/coffee.sli', 'index.php', 'lib/a.php'])
@@ -232,7 +232,7 @@ it('leaves .phpbm out of the staging when the sources are the project root', fun
 
     $files = [];
     foreach (new RecursiveIteratorIterator(new RecursiveDirectoryIterator($staging, FilesystemIterator::SKIP_DOTS)) as $file) {
-        $files[] = substr($file->getPathname(), strlen($staging) + 1);
+        $files[] = str_replace(DIRECTORY_SEPARATOR, '/', substr($file->getPathname(), strlen($staging) + 1));
     }
     sort($files);
     expect($files)->toBe(['assets/ui/logo.png', 'assets/ui/logo.sli', 'index.php', 'project-src/index.php']);

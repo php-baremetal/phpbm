@@ -138,7 +138,7 @@ it('builds the image of the embedded storage from the sources and the embedded a
             ['embedded', '/app/assets/ui/ready.sli', file_get_contents("{$images}/1x1-opaque.sli")],
             ['microsd', '/sdcard/assets/photos/beans.sli', file_get_contents("{$images}/1x1-opaque.sli")],
         ])
-        ->and(array_map(fn ($a) => str_starts_with($a['file'], '/'), $assets))->toBe([true, true, true])
+        ->and(array_map(fn ($a) => \App\Support\Paths::isAbsolute($a['file']), $assets))->toBe([true, true, true])
         ->and(file_get_contents("{$staging}/index.php"))->toBe("<?php echo 'hi';\n")
         ->and(file_get_contents("{$staging}/assets/ui/icons/coffee.sli"))->toBe(file_get_contents(__DIR__ . '/../fixtures/images/8x8-spans.sli'))
         ->and(file_get_contents("{$staging}/assets/ui/ready.sli"))->toBe(file_get_contents(__DIR__ . '/../fixtures/images/1x1-opaque.sli'))
