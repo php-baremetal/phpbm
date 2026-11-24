@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.1
+
+- Fixed: phpbm 0.3.0 got php-baremetal/spec 1.3.0 (in the PHAR and through Composer), whose published copy still refused a board-overrides entry for a block the board does not have ("board-overrides: board '...' has no 'microsd' to override"), so adding a block did not work. phpbm now requires php-baremetal/spec 1.3.1, which adds the block when the entry gives its `type`.
+
 ## 0.3.0
 
 - Added: extra.baremetal.board-overrides can add a block the board does not have, written whole with its `type` (needs php-baremetal/spec 1.3), for example a microSD slot on a generic board. Every check of the board (the runtime's and the storage's capabilities, microsd assets) and the build see the board after the overrides. An added block must be named after a block kind of the SDK (its board files and chips) or of an installed package (extra.baremetal.board-blocks), optionally with a suffix (led-2), and an added microsd or network block must have a type the chip supports.
