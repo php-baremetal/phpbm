@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "9ff4bff2723d7dbd11f1b7eb9b1ffb07",
+    "content-hash": "e9eae38312ecfbed01050d0f3436c70b",
     "packages": [
         {
             "name": "brick/math",
@@ -2833,16 +2833,16 @@
         },
         {
             "name": "php-baremetal/spec",
-            "version": "v1.4.0",
+            "version": "v1.4.1",
             "source": {
                 "type": "git",
                 "url": "https://github.com/php-baremetal/spec.git",
-                "reference": "a7a0214d274540719244d63c0a7814d9a9260656"
+                "reference": "eb9eef939fda36509e72a6ca2fb91129ee1dd1fe"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/php-baremetal/spec/zipball/a7a0214d274540719244d63c0a7814d9a9260656",
-                "reference": "a7a0214d274540719244d63c0a7814d9a9260656",
+                "url": "https://api.github.com/repos/php-baremetal/spec/zipball/eb9eef939fda36509e72a6ca2fb91129ee1dd1fe",
+                "reference": "eb9eef939fda36509e72a6ca2fb91129ee1dd1fe",
                 "shasum": ""
             },
             "require": {
@@ -2873,9 +2873,9 @@
             "description": "Shared model of the php-baremetal build manifest and the SDK driver contract.",
             "support": {
                 "issues": "https://github.com/php-baremetal/spec/issues",
-                "source": "https://github.com/php-baremetal/spec/tree/v1.4.0"
+                "source": "https://github.com/php-baremetal/spec/tree/v1.4.1"
             },
-            "time": "2026-11-26T16:08:17+00:00"
+            "time": "2026-11-26T17:29:30+00:00"
         },
         {
             "name": "phpoption/phpoption",
