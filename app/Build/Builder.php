@@ -38,7 +38,7 @@ final readonly class Builder
     public function plan(Project $project, Output $out, bool $clean = false): Target
     {
         $config = $project->manifest->project;
-        $sdk = $this->resolver->resolve($project->dir, $config->sdk, $out);
+        $sdk = $this->resolver->forProject($project, $out);
         $target = $this->validator->validate($project, $sdk);
         $driver = $this->drivers->for($sdk);
 

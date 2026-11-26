@@ -327,3 +327,148 @@ it('rejects an unknown kind when the registry has no board packages', function (
         ->expectsOutputToContain("board 'demo-screen' has no feature 'audio' (features: display, i2c, led)")
         ->assertExitCode(1);
 });
+
+/** The demo sdk lists php-baremetal/boards-demo, published at 1.2.0 with pack-board in a registry that PHPBM_REPOSITORY names. */
+/**
+ * @param array<string,string> $boards id => JSON of the boards of php-baremetal/boards-demo 1.2.0
+ * @param list<string> $packages the sdk's board-packages
+ */
+function officialBoards(array $boards = ['pack-board' => Fixtures::PACK_BOARD], array $packages = ['php-baremetal/boards-demo']): string
+{
+    installDemoSdk();
+    Fixtures::withBoardPackages(app(App\Support\Home::class)->sdks() . '/demo/1.0.0', $packages);
+    $zips = Fixtures::tempDir();
+    $files = [];
+    foreach ($boards as $id => $json) {
+        $files["boards/demo/{$id}.json"] = $json;
+    }
+    $registry = Fixtures::boardsRegistry([
+        '1.2.0' => Fixtures::zip("{$zips}/boards-demo-1.2.0.zip", $files),
+    ]);
+    putenv("PHPBM_REPOSITORY={$registry}");
+    return $registry;
+}
+
+describe('official board packages', function () {
+    beforeEach(function () {
+        if (!class_exists(ZipArchive::class)) {
+            $this->markTestSkipped('the zip extension builds the fixture archives');
+        }
+    });
+
+    it('requires the package of the chosen board', function (string $board) {
+        officialBoards();
+        $this->artisan('init', ['dir' => $this->dir, '--board' => $board, '--no-interaction' => true])->assertExitCode(0);
+
+        $composer = json_decode(file_get_contents($this->dir . '/composer.json'), true);
+        expect($composer['require'])->toBe(['php-baremetal/conductor' => '^1.0', 'php-baremetal/boards-demo' => '^1.2'])
+            ->and($composer['extra']['baremetal']['board'])->toBe('pack-board')
+            ->and($this->composer->calls)->toBe([['install']]);
+    })->with(['pack-board', 'php-baremetal/boards-demo:pack-board']);
+
+    it('requires no board package for a board of the sdk', function () {
+        officialBoards();
+        $this->artisan('init', ['dir' => $this->dir, '--board' => 'demo-net', '--no-interaction' => true])->assertExitCode(0);
+
+        expect(json_decode(file_get_contents($this->dir . '/composer.json'), true)['require'])->toBe(['php-baremetal/conductor' => '^1.0']);
+    });
+
+    it('lists the boards of the official packages with their package', function () {
+        officialBoards();
+        $this->env = app()['env'];
+        app()['env'] = 'testing';
+
+        $this->artisan('init', ['dir' => $this->dir, '--runtime' => 'loop', '--storage' => 'embedded', '--features' => 'none'])
+            ->expectsQuestion('Project name', 'blink')
+            ->expectsChoice('Board', 'pack-board', [
+                'demo-board' => 'Demo board (demo-board)',
+                'demo-net' => 'Demo net (demo-net)',
+                'demo-screen' => 'Demo screen (demo-screen)',
+                'demo-sdio' => 'Demo sdio (demo-sdio)',
+                'pack-board' => 'Pack board (pack-board) · php-baremetal/boards-demo',
+            ])
+            ->assertExitCode(0);
+
+        expect(json_decode(file_get_contents($this->dir . '/composer.json'), true)['require'])->toHaveKey('php-baremetal/boards-demo');
+    });
+
+    it('reuses the cached boards when the registry is gone', function () {
+        $registry = officialBoards();
+        $this->artisan('init', ['dir' => $this->dir, '--board' => 'demo-net', '--no-interaction' => true])->assertExitCode(0);
+        rename($registry, $registry . '-gone');
+
+        $second = Fixtures::tempDir() . '/second';
+        $this->artisan('init', ['dir' => $second, '--board' => 'pack-board', '--no-interaction' => true])
+            ->doesntExpectOutputToContain('only the boards of the sdk')
+            ->assertExitCode(0);
+        expect(json_decode(file_get_contents($second . '/composer.json'), true)['require'])->toHaveKey('php-baremetal/boards-demo');
+    });
+
+    it('uses an expired cache with a warning when the registry is gone', function () {
+        $registry = officialBoards();
+        $t = 1_800_000_000;
+        app()->instance(App\Board\BoardSources::class, new App\Board\BoardSources($this->home, null, fn () => $t));
+        $this->artisan('init', ['dir' => $this->dir, '--board' => 'demo-net', '--no-interaction' => true])->assertExitCode(0);
+        rename($registry, $registry . '-gone');
+
+        app()->instance(App\Board\BoardSources::class, new App\Board\BoardSources($this->home, null, fn () => $t + 7200));
+        $second = Fixtures::tempDir() . '/second';
+        $this->artisan('init', ['dir' => $second, '--board' => 'pack-board', '--no-interaction' => true])
+            ->expectsOutputToContain('using the board packages read on ' . date('Y-m-d H:i', $t))
+            ->assertExitCode(0);
+    });
+
+    it('writes the long form when the sdk and a package define the same id', function (string $board, string $written, array $require) {
+        officialBoards(['pack-board' => Fixtures::PACK_BOARD, 'demo-net' => Fixtures::PACK_BOARD]);
+        $this->artisan('init', ['dir' => $this->dir, '--board' => $board, '--no-interaction' => true])->assertExitCode(0);
+
+        $composer = json_decode(file_get_contents($this->dir . '/composer.json'), true);
+        expect($composer['extra']['baremetal']['board'])->toBe($written)
+            ->and($composer['require'])->toBe(['php-baremetal/conductor' => '^1.0', ...$require]);
+    })->with([
+        'sdk board' => ['sdk:demo-net', 'sdk:demo-net', []],
+        'package board' => ['php-baremetal/boards-demo:demo-net', 'php-baremetal/boards-demo:demo-net', ['php-baremetal/boards-demo' => '^1.2']],
+        'unique board' => ['pack-board', 'pack-board', ['php-baremetal/boards-demo' => '^1.2']],
+    ]);
+
+    it('writes the long form of the board chosen from the menu when its id has two sources', function () {
+        officialBoards(['demo-net' => Fixtures::PACK_BOARD]);
+        $this->env = app()['env'];
+        app()['env'] = 'testing';
+
+        $this->artisan('init', ['dir' => $this->dir, '--runtime' => 'loop', '--storage' => 'embedded', '--features' => 'none'])
+            ->expectsQuestion('Project name', 'blink')
+            ->expectsChoice('Board', 'sdk:demo-net', [
+                'demo-board' => 'Demo board (demo-board)',
+                'sdk:demo-net' => 'Demo net (demo-net)',
+                'demo-screen' => 'Demo screen (demo-screen)',
+                'demo-sdio' => 'Demo sdio (demo-sdio)',
+                'php-baremetal/boards-demo:demo-net' => 'Pack board (demo-net) · php-baremetal/boards-demo',
+            ])
+            ->assertExitCode(0);
+
+        expect(json_decode(file_get_contents($this->dir . '/composer.json'), true)['extra']['baremetal']['board'])->toBe('sdk:demo-net');
+    });
+
+    it('writes the long form when two packages define the same id', function () {
+        $registry = officialBoards(['twin' => Fixtures::PACK_BOARD], ['php-baremetal/boards-demo', 'php-baremetal/boards-other']);
+        $zip = Fixtures::zip(Fixtures::tempDir() . '/boards-other-2.0.0.zip', ['boards/demo/twin.json' => Fixtures::PACK_BOARD]);
+        Fixtures::boardsMetadata($registry, ['2.0.0' => $zip], 'php-baremetal/boards-other');
+
+        $this->artisan('init', ['dir' => $this->dir, '--board' => 'php-baremetal/boards-other:twin', '--no-interaction' => true])->assertExitCode(0);
+
+        $composer = json_decode(file_get_contents($this->dir . '/composer.json'), true);
+        expect($composer['extra']['baremetal']['board'])->toBe('php-baremetal/boards-other:twin')
+            ->and($composer['require'])->toBe(['php-baremetal/conductor' => '^1.0', 'php-baremetal/boards-other' => '^2.0']);
+    });
+
+    it('offers only the boards of the sdk without registry and cache', function () {
+        officialBoards();
+        putenv('PHPBM_REPOSITORY=' . $this->dir . '-nowhere');
+
+        $this->artisan('init', ['dir' => $this->dir, '--board' => 'pack-board', '--no-interaction' => true])
+            ->expectsOutputToContain('only the boards of the sdk are offered')
+            ->expectsOutputToContain("board 'pack-board' not found in sdk demo 1.0.0")
+            ->assertExitCode(1);
+    });
+});

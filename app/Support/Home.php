@@ -52,6 +52,12 @@ final readonly class Home
         return $this->cache() . '/board-packages.json';
     }
 
+    /** Boards of the official bm-boards packages, read from their dist archives. */
+    public function boardSources(): string
+    {
+        return $this->cache() . '/board-sources';
+    }
+
     public function downloads(): string
     {
         return $this->cache() . '/downloads';

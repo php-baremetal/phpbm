@@ -4,11 +4,15 @@ declare(strict_types=1);
 
 namespace App\Commands;
 
+use App\Board\BoardLabel;
 use App\PhpbmException;
 use App\Sdk\DriverFactory;
 use App\Sdk\SdkStore;
 use App\Support\FlashSize;
+use App\Support\Paths;
+use PhpBaremetal\Spec\Manifest\Manifest;
 use PhpBaremetal\Spec\Sdk\Port;
+use PhpBaremetal\Spec\Sdk\SdkLoader;
 
 final class DiscoverCommand extends PhpbmCommand
 {
@@ -22,10 +26,18 @@ final class DiscoverCommand extends PhpbmCommand
         $factory = app(DriverFactory::class);
 
         $drivers = [];
+        $packages = $this->projectBoardPackages();
         foreach ($store->names() as $name) {
             $sdk = $store->current($name);
             if ($sdk === null) {
                 continue;
+            }
+            if ($packages !== []) {
+                try {
+                    $sdk = (new SdkLoader())->withBoardPackages($sdk, $packages, Paths::cwd());
+                } catch (\Throwable $e) {
+                    $this->warn("  {$name}: {$e->getMessage()}");
+                }
             }
             try {
                 $drivers[] = [$sdk, $factory->for($sdk)];
@@ -63,6 +75,25 @@ final class DiscoverCommand extends PhpbmCommand
         return self::SUCCESS;
     }
 
+    /**
+     * The bm-boards packages of the project in the current folder, when there is one with a manifest.
+     *
+     * @return list<\PhpBaremetal\Spec\Manifest\Package>
+     */
+    private function projectBoardPackages(): array
+    {
+        $file = Paths::cwd() . '/' . Manifest::PATH;
+        if (!is_file($file)) {
+            return [];
+        }
+        try {
+            return Manifest::fromFile($file)->ofKind('boards');
+        } catch (\Throwable $e) {
+            $this->warn("  {$file}: {$e->getMessage()}");
+            return [];
+        }
+    }
+
     /** @param list<array{0: \PhpBaremetal\Spec\Sdk\Sdk, 1: \PhpBaremetal\Spec\Sdk\Driver}> $drivers */
     private function describe(Port $port, array $drivers): void
     {
@@ -94,9 +125,10 @@ final class DiscoverCommand extends PhpbmCommand
             $fitting = [];
             foreach ($boards as $board) {
                 $fits = FlashSize::fits($board->flash, $chip->flashSize);
-                $this->line("  board   {$board->id}  {$board->name}" . ($fits ? '' : "  (needs {$board->flash} of flash)"));
+                $source = $board->fromSdk() ? '' : " · {$board->source}";
+                $this->line("  board   {$board->id}  {$board->name}{$source}" . ($fits ? '' : "  (needs {$board->flash} of flash)"));
                 if ($fits) {
-                    $fitting[] = $board->id;
+                    $fitting[] = BoardLabel::key($sdk, $board);
                 }
             }
             if ($boards !== [] && $fitting === []) {

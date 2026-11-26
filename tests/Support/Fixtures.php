@@ -131,6 +131,89 @@ final class Fixtures
         return $dir;
     }
 
+    /** A Pack board for the demo chip, as a bm-boards package writes it. */
+    public const PACK_BOARD = '{"name":"Pack board","chip":"demo","flash":"4MB","network":{"type":"wifi"}}';
+
+    /**
+     * A bm-boards package folder: boards/<sdk>/<id>.json for each board.
+     *
+     * @param array<string,string> $boards id => JSON
+     */
+    public static function boardsPackage(string $dir, array $boards = ['pack-board' => self::PACK_BOARD], string $sdk = 'demo'): string
+    {
+        @mkdir("{$dir}/boards/{$sdk}", 0777, true);
+        foreach ($boards as $id => $json) {
+            file_put_contents("{$dir}/boards/{$sdk}/{$id}.json", $json);
+        }
+        return $dir;
+    }
+
+    /**
+     * A zip like a dist archive of GitHub: every entry under one top folder.
+     *
+     * @param array<string,string> $files path inside the top folder => contents
+     */
+    public static function zip(string $path, array $files, string $top = 'boards-demo-0123abc'): string
+    {
+        $zip = new \ZipArchive();
+        if ($zip->open($path, \ZipArchive::CREATE | \ZipArchive::OVERWRITE) !== true) {
+            throw new RuntimeException("cannot create {$path}");
+        }
+        foreach ($files as $name => $contents) {
+            $zip->addFromString(($top === '' ? '' : "{$top}/") . $name, $contents);
+        }
+        $zip->close();
+        return $path;
+    }
+
+    /**
+     * A copy of tests/fixtures/registry with a bm-boards package added: its versions are version => dist zip path
+     * (null for a version without dist).
+     *
+     * @param array<string,?string> $versions
+     */
+    public static function boardsRegistry(array $versions, string $name = 'php-baremetal/boards-demo'): string
+    {
+        $dir = self::tempDir();
+        self::copyDir(dirname(__DIR__) . '/fixtures/registry', $dir);
+        $list = json_decode((string) file_get_contents("{$dir}/list.json"), true);
+        $list['packageNames'][] = $name;
+        file_put_contents("{$dir}/list.json", json_encode($list, JSON_UNESCAPED_SLASHES));
+        self::boardsMetadata($dir, $versions, $name);
+        return $dir;
+    }
+
+    /** @param array<string,?string> $versions version => dist zip path */
+    public static function boardsMetadata(string $registry, array $versions, string $name = 'php-baremetal/boards-demo'): void
+    {
+        $entries = [];
+        foreach ($versions as $version => $zip) {
+            $entry = ['name' => $name, 'version' => $version, 'type' => 'bm-boards'];
+            if ($zip !== null) {
+                $entry['dist'] = ['type' => 'zip', 'url' => $zip, 'reference' => 'abc', 'shasum' => ''];
+            }
+            $entries[] = $entry;
+        }
+        @mkdir(dirname("{$registry}/p2/{$name}.json"), 0777, true);
+        file_put_contents("{$registry}/p2/{$name}.json", json_encode(['packages' => [$name => $entries]], JSON_UNESCAPED_SLASHES));
+    }
+
+    public static function copyDir(string $from, string $to): void
+    {
+        @mkdir($to, 0777, true);
+        foreach (array_diff(scandir($from) ?: [], ['.', '..']) as $f) {
+            is_dir("{$from}/{$f}") ? self::copyDir("{$from}/{$f}", "{$to}/{$f}") : copy("{$from}/{$f}", "{$to}/{$f}");
+        }
+    }
+
+    /** Adds "board-packages" to the sdk.json of an sdk folder. @param list<string> $packages */
+    public static function withBoardPackages(string $sdkDir, array $packages): void
+    {
+        $data = json_decode((string) file_get_contents("{$sdkDir}/sdk.json"), true);
+        $data['board-packages'] = $packages;
+        file_put_contents("{$sdkDir}/sdk.json", json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+    }
+
     /** @param list<string> $versions */
     public static function bootstrap(array $versions = ['1.0.0']): Home
     {

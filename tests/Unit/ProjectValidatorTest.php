@@ -275,3 +275,25 @@ it('rejects an added sdk block of a type the chip does not support', function ()
     expect(fn () => validateDemoProject(['board' => 'demo-net', 'board-overrides' => ['microsd' => ['type' => 'sdio']]]))
         ->toThrow(PhpbmException::class, "board-overrides: chip 'demo' does not support microsd 'sdio' (it supports spi)");
 });
+
+it('finds the board of an installed bm-boards package', function () {
+    $dir = Fixtures::tempDir();
+    Fixtures::boardsPackage("{$dir}/.phpbm/packages/acme/boards");
+    $package = new Package('acme/boards', 'bm-boards', '1.0.0', '.phpbm/packages/acme/boards', []);
+    Fixtures::project($dir, ['board' => 'pack-board'], [$package]);
+
+    $target = (new ProjectValidator())->validate(Project::load($dir), $this->sdk);
+    expect($target->board->id)->toBe('pack-board')->and($target->board->source)->toBe('acme/boards');
+});
+
+it('asks for the long form when a package board has the id of an sdk board', function () {
+    $dir = Fixtures::tempDir();
+    Fixtures::boardsPackage("{$dir}/pkg", ['demo-board' => Fixtures::PACK_BOARD]);
+    $package = new Package('acme/boards', 'bm-boards', '1.0.0', 'pkg', []);
+
+    expect(fn () => (new ProjectValidator())->validate(Project::load(Fixtures::project($dir, [], [$package])), $this->sdk))
+        ->toThrow(SpecException::class, "board 'demo-board' is defined by the sdk and acme/boards: use 'sdk:demo-board' or 'acme/boards:demo-board'");
+
+    $target = (new ProjectValidator())->validate(Project::load(Fixtures::project($dir, ['board' => 'acme/boards:demo-board'], [$package])), $this->sdk);
+    expect($target->board->name)->toBe('Pack board');
+});

@@ -19,7 +19,7 @@ final class ToolchainInstallCommand extends PhpbmCommand
     protected function perform(): int
     {
         $project = Project::load((string) getcwd(), app(ConductorCheck::class));
-        $sdk = app(SdkResolver::class)->resolve($project->dir, $project->manifest->project->sdk, $this->out());
+        $sdk = app(SdkResolver::class)->forProject($project, $this->out());
         $toolchain = app(DriverFactory::class)->for($sdk)->toolchain();
         $name = $sdk->descriptor->name;
 

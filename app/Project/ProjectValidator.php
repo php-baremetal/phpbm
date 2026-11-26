@@ -8,12 +8,19 @@ use App\Build\AssetResolver;
 use App\PhpbmException;
 use PhpBaremetal\Spec\Sdk\Descriptor\PhpExtension;
 use PhpBaremetal\Spec\Sdk\Sdk;
+use PhpBaremetal\Spec\Sdk\SdkLoader;
 use PhpBaremetal\Spec\SpecException;
 
 final class ProjectValidator
 {
+    public function __construct(private readonly SdkLoader $loader = new SdkLoader())
+    {
+    }
+
+    /** Validates against the SDK with the boards of the project's bm-boards packages (added again if already there). */
     public function validate(Project $project, Sdk $sdk): Target
     {
+        $sdk = $this->loader->withBoardPackages($sdk, $project->manifest->packages, $project->dir);
         $config = $project->manifest->project;
         $board = $sdk->board($config->board)->withOverrides($config->boardOverrides);
         $target = new Target(

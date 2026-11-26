@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Sdk;
 
 use App\PhpbmException;
+use App\Project\Project;
 use App\Support\Archive;
 use App\Support\Downloader;
 use App\Support\Home;
@@ -12,6 +13,7 @@ use Composer\Semver\Semver;
 use PhpBaremetal\Spec\Manifest\SdkRequirement;
 use PhpBaremetal\Spec\Sdk\Output;
 use PhpBaremetal\Spec\Sdk\Sdk;
+use PhpBaremetal\Spec\Sdk\SdkLoader;
 use UnexpectedValueException;
 
 final readonly class SdkResolver
@@ -22,7 +24,15 @@ final readonly class SdkResolver
         private Downloader $downloader,
         private Archive $archive,
         private Home $home,
+        private SdkLoader $loader = new SdkLoader(),
     ) {
+    }
+
+    /** The SDK of a project, with the boards of its bm-boards packages. */
+    public function forProject(Project $project, Output $out, bool $update = false): Sdk
+    {
+        $sdk = $this->resolve($project->dir, $project->manifest->project->sdk, $out, $update);
+        return $this->loader->withBoardPackages($sdk, $project->manifest->packages, $project->dir);
     }
 
     public function resolve(string $projectDir, SdkRequirement $requirement, Output $out, bool $update = false): Sdk

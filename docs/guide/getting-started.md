@@ -40,7 +40,8 @@ phpbm monitor                        # serial console
 <!-- @endcode-block -->
 
 `phpbm init` asks for the SDK, the board, the runtime and the storage, offering only the runtimes and storages
-the board can run. It prints the next commands, including a `composer require` for any package the chosen
+the board can run. The boards are the SDK's and those of its official board packages (such as
+`php-baremetal/boards-waveshare`); choosing one of the latter adds its package to `composer.json`. It prints the next commands, including a `composer require` for any package the chosen
 runtime needs (`event-driven` needs `php-baremetal/ext-events`). `composer require` runs the conductor, which
 writes `.phpbm/manifest.json`: every other phpbm command reads it.
 

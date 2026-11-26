@@ -93,7 +93,9 @@ phpbm monitor
 ```
 
 `phpbm init` asks for the SDK, the board, the runtime and the storage (or takes them from `--sdk`, `--board`,
-`--runtime`, `--storage`) and writes a `composer.json` like this one:
+`--runtime`, `--storage`) and writes a `composer.json` like this one. The boards offered are the SDK's and those of
+the official board packages it lists; a board from a package (here a Waveshare board, from
+`php-baremetal/boards-waveshare`) adds that package to `require`.
 
 ```json
 {
@@ -103,7 +105,8 @@ phpbm monitor
     { "type": "composer", "url": "https://repository.php-baremetal.com", "canonical": true }
   ],
   "require": {
-    "php-baremetal/conductor": "^1.0"
+    "php-baremetal/conductor": "^1.0",
+    "php-baremetal/boards-waveshare": "^1.0"
   },
   "config": {
     "allow-plugins": { "php-baremetal/conductor": true },

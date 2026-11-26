@@ -22,6 +22,7 @@ next: { label: 'SDKs and phpbm.lock', href: './sdks.md' }
   ],
   "require": {
     "php-baremetal/conductor": "^1.0",
+    "php-baremetal/boards-waveshare": "^1.0",
     "php-baremetal/ext-gpio": "^1.0"
   },
   "config": {
@@ -43,7 +44,8 @@ next: { label: 'SDKs and phpbm.lock', href: './sdks.md' }
 - **`repositories`**: the registry of the `bm-*` packages, marked `canonical` so Composer never takes a
   `php-baremetal/*` package from anywhere else.
 - **`require`**: the conductor (the plugin must also be installed globally) and the packages: extensions,
-  drivers, `php-baremetal/php-<name>` PHP extensions. Never a HAL: the conductor adds the one for the SDK's
+  drivers, `php-baremetal/php-<name>` PHP extensions, and the board package (`bm-boards`) when the board is not one
+  of the SDK's (here `php-baremetal/boards-waveshare`). Never a HAL: the conductor adds the one for the SDK's
   platform.
 - **`config.platform.php`**: the PHP version of the firmware. Its minor (`8.5`) must be one the SDK builds;
   `phpbm init` writes the newest.
@@ -53,7 +55,7 @@ next: { label: 'SDKs and phpbm.lock', href: './sdks.md' }
 | Key | Required | Meaning |
 | --- | --- | --- |
 | `sdk` | yes | SDK name and version constraint, e.g. `esp32@^2.0`. |
-| `board` | yes | A board id of the SDK. `phpbm discover` lists the ones that match the connected chip. |
+| `board` | yes | A board id of the SDK or of an installed `bm-boards` package; `<vendor>/<package>:<id>` (or `sdk:<id>`) when two sources have the same id. `phpbm discover` lists the ones that match the connected chip. |
 | `runtime` | yes | How the script runs. `esp32`: `init-loop`, `event-driven`, `web-server`. |
 | `storage` | yes | Where the PHP sources live. `esp32`: `embedded` (in flash, read-only), `microsd`. |
 | `src` | no | Source directory, default `project-src`. |
@@ -68,6 +70,10 @@ rules as the SDK's, and phpbm names the package in its messages.
 phpbm checks all of them against the SDK before it builds: an unknown option lists the accepted ones, a
 runtime the board cannot run names the missing capability, a missing package names the `composer require`. The
 board they are checked against is the board after `board-overrides`, so a block the overrides add counts.
+
+Boards can come from Composer packages of type `bm-boards`, which hold `boards/<sdk>/*.json` files (for example
+`php-baremetal/boards-waveshare`). Once such a package is installed, its boards are checked like the SDK's and
+can be used in `board`; the SDK lists its official ones, which `phpbm init` offers and requires for you.
 
 To change the board, or to add or remove the board's features (display, LED, I2C bus...), run `phpbm board`:
 it checks that the runtime and the storage fit the new board, offers the new board's features, drops the

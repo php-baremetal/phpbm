@@ -93,3 +93,20 @@ it('keeps going when an sdk cannot create its driver', function () {
         ->expectsOutputToContain('sdk     demo 1.0.0')
         ->assertExitCode(0);
 });
+
+it('lists the boards of the bm-boards packages of the project in the current folder', function () {
+    installDemo();
+    Fixtures::toolchain($this->home, ['chips' => ['/dev/x' => 'demo']]);
+    $dir = Fixtures::tempDir();
+    Fixtures::boardsPackage("{$dir}/.phpbm/packages/acme/boards");
+    Fixtures::project($dir, [], [new \PhpBaremetal\Spec\Manifest\Package('acme/boards', 'bm-boards', '1.0.0', '.phpbm/packages/acme/boards', [])]);
+    $cwd = getcwd();
+    chdir($dir);
+    try {
+        $this->artisan('discover', ['--port' => '/dev/x'])
+            ->expectsOutputToContain('board   pack-board  Pack board · acme/boards')
+            ->assertExitCode(0);
+    } finally {
+        chdir($cwd);
+    }
+});

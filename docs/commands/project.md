@@ -32,7 +32,8 @@ Project name, default the directory name. Lowercase letters, digits, `.`, `_`, `
 An installed SDK. Asked when several are installed.
 <!-- @endparam -->
 <!-- @param name="--board" type="string" -->
-A board id of the SDK. Asked when the SDK has several.
+A board id of the SDK or of one of its official board packages, or the long form `<vendor>/<package>:<id>`
+(`sdk:<id>` for the SDK's own board). Asked when there are several.
 <!-- @endparam -->
 <!-- @param name="--runtime" type="string" -->
 A runtime the board can run; an explicit one it cannot run is an error.
@@ -49,6 +50,22 @@ have is an error that lists the kinds the board has; a kind with no package is s
 Does not run Composer: phpbm prints the `composer require` and `composer install` commands instead.
 <!-- @endparam -->
 <!-- @endparams -->
+
+The boards offered are the SDK's and those of the official board packages the SDK lists in `sdk.json`
+(`board-packages`, e.g. `php-baremetal/boards-waveshare`). For each of these packages phpbm reads the metadata
+from the same registry as the features (`PHPBM_REPOSITORY`), downloads the dist archive of the latest stable
+version and reads only its `boards/<sdk>/*.json` files (nothing in the archive is run). It prints
+`reading the boards of <packages> from <registry>…`, and keeps the boards in `~/.phpbm/cache/board-sources` for an
+hour. Offline it uses the cache (`cannot reach <registry>, using the board packages read on <date>`), or, with none,
+offers only the SDK's boards (`cannot reach <registry>: only the boards of the sdk are offered`). A package without
+metadata or without a stable dist archive is skipped with a warning. In the menu a board of a package shows its
+package: `Name (id) · php-baremetal/boards-waveshare`. When two sources have the same id, choose with the long form;
+`extra.baremetal.board` then gets the long form too (`sdk:<id>` or `<vendor>/<package>:<id>`).
+
+When the chosen board comes from a package, phpbm adds the package to the project's `require` as
+`^major.minor` of the version it read (`"php-baremetal/boards-waveshare": "^1.0"`), so Composer installs it with
+the project. Boards of other `bm-boards` packages are not offered by `init`: `composer require` the package in the
+project, then pick the board with `phpbm board <id>`.
 
 After the board, phpbm offers its features (display, LED, I2C bus...) as checkboxes, each with the package that
 drives it, found in the package registry. A feature with no package is listed as `no package` and cannot be
@@ -87,10 +104,13 @@ It runs in the project directory and reads `composer.json` directly, so it also 
 
 <!-- @params heading="Arguments and options" -->
 <!-- @param name="board" type="string" -->
-The new board id. Without it, or with the current board, phpbm works on the features of the current board.
+The new board id, of the SDK or of a `bm-boards` package installed in the project (long form
+`<vendor>/<package>:<id>` when two sources have the same id). Without it, or with the current board, phpbm works on
+the features of the current board.
 <!-- @endparam -->
 <!-- @param name="--change" type="flag" -->
-Choose the new board from the list of the SDK's boards (needs a terminal).
+Choose the new board from the list of the SDK's boards and those of the project's `bm-boards` packages, shown
+as `Name (id) · <package>` (needs a terminal).
 <!-- @endparam -->
 <!-- @param name="--features" type="string" -->
 The features to have after the command: `all`, `none` or kinds separated by commas (`display,i2c`). It replaces
@@ -154,6 +174,7 @@ Composer or `--no-install`.
 | --- | --- |
 | `no composer.json in <dir>: run phpbm init` | outside a project |
 | `board '<id>' does not exist in sdk <name> <version>` | an unknown board |
+| `board '<id>' is defined by <source> and <source>: use '<source>:<id>' or '<source>:<id>'` | two sources (the SDK, `bm-boards` packages) have this id: pass the long form |
 | `storage '<s>' needs <capability>, but board '<id>' has none` (and the same for the runtime) | a board the runtime or the storage does not fit; `composer.json` is not changed |
 | `composer <args> failed (exit <code>)[: <Composer's message>]; done so far: <steps>` | a Composer step fails; the steps already done stay, exit code 1 |
 | `composer not found: set PHPBM_COMPOSER, install Composer, or use --no-install` | Composer is missing |
@@ -233,7 +254,8 @@ Probes the serial ports with every installed SDK and prints, for each port, the 
 size, MAC, radios), the SDK that recognised it and the boards of that SDK built on that chip. A board with more
 flash than the chip is marked `(needs 16MB of flash)`. When exactly one board fits, the last line is the
 `"board"` entry to put in `extra.baremetal`. Run it to pick the `board` of a new project, or to check which
-port a board is on. It works outside a project.
+port a board is on. It works outside a project; in a project folder it lists the boards of the project's
+`bm-boards` packages too, followed by their package (`· php-baremetal/boards-waveshare`).
 
 <!-- @code-block language="Text" label="phpbm discover" -->
 ```text

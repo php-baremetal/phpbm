@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace App\Commands;
 
 use App\Board\BoardFeatures;
+use App\Board\BoardLabel;
 use App\Board\BoardPackages;
+use App\Board\BoardSources;
 use App\Board\Feature;
 use App\Board\FeatureChoice;
 use App\PhpbmException;
@@ -14,9 +16,12 @@ use App\Project\ConductorCheck;
 use App\Sdk\SdkStore;
 use App\Support\Composer;
 use App\Support\Paths;
+use PhpBaremetal\Spec\Manifest\Package;
 use PhpBaremetal\Spec\Sdk\Descriptor\Board;
 use PhpBaremetal\Spec\Sdk\Descriptor\Module;
 use PhpBaremetal\Spec\Sdk\Sdk;
+use PhpBaremetal\Spec\Sdk\SdkLoader;
+use PhpBaremetal\Spec\SpecException;
 use PhpBaremetal\Spec\Support\Json;
 
 use function Laravel\Prompts\multiselect;
@@ -32,7 +37,7 @@ final class InitCommand extends PhpbmCommand
         {dir? : Directory of the new project (default: current directory)}
         {--name= : Project name}
         {--sdk= : SDK to use}
-        {--board= : Board id}
+        {--board= : Board id, or <vendor>/<package>:<id> for the board of a package}
         {--runtime= : Execution model}
         {--storage= : Where the PHP sources live}
         {--features= : Board features to install: all, none or kinds separated by commas (display,i2c)}
@@ -55,12 +60,24 @@ final class InitCommand extends PhpbmCommand
             throw new PhpbmException("invalid project name '{$name}': use lowercase letters, digits, '.', '_' and '-'");
         }
 
-        $board = $sdk->board($this->choose('board', 'Board', array_map(static fn ($b) => "{$b->name} ({$b->id})", $sdk->boards)));
+        [$sdk, $sources] = $this->withOfficialBoards($sdk);
+        $board = $sdk->board($this->choose('board', 'Board', array_map(BoardLabel::label(...), $sdk->boards)));
         $features = $this->chooseFeatures($board);
         $runtime = $sdk->runtime($this->chooseModule('runtime', 'Runtime', $sdk->runtimes, $board, $sdk));
         $storage = $sdk->storage($this->chooseModule('storage', 'Storage', $sdk->storages, $board, $sdk));
 
-        $this->write($dir, $name, $sdk, $board->id, $runtime->id, $storage->id);
+        // The board of a package needs that package. The short id is written unless another listed source has the
+        // same id: then the long form, so the project keeps building once the other package is installed.
+        $source = $board->fromSdk() ? null : ($sources[$board->source] ?? null);
+        $this->write(
+            $dir,
+            $name,
+            $sdk,
+            BoardLabel::key($sdk, $board),
+            $runtime->id,
+            $storage->id,
+            $source === null ? [] : [$source->name => self::caret($source->version)],
+        );
 
         $problem = app(ConductorCheck::class)->problem();
         if ($problem !== null) {
@@ -103,6 +120,33 @@ final class InitCommand extends PhpbmCommand
         $this->line('  phpbm build');
 
         return $failed ? self::FAILURE : self::SUCCESS;
+    }
+
+    /**
+     * The SDK with the boards of the official packages it lists (sdk.json "board-packages"); a package whose boards
+     * do not load is skipped with a warning.
+     *
+     * @return array{0: Sdk, 1: array<string, Package>} the SDK and the packages whose boards it has, by name
+     */
+    private function withOfficialBoards(Sdk $sdk): array
+    {
+        $loader = new SdkLoader();
+        $sources = [];
+        foreach (app(BoardSources::class)->packages($sdk, $this->out()) as $package) {
+            try {
+                $sdk = $loader->withBoardPackages($sdk, [$package]);
+                $sources[$package->name] = $package;
+            } catch (SpecException $e) {
+                $this->warn("skipping the boards of {$package->name}: {$e->getMessage()}");
+            }
+        }
+        return [$sdk, $sources];
+    }
+
+    /** ^major.minor of a version (1.2.3 -> ^1.2). */
+    private static function caret(string $version): string
+    {
+        return preg_match('/^v?(\d+)\.(\d+)/', $version, $m) === 1 ? "^{$m[1]}.{$m[2]}" : "^{$version}";
     }
 
     /** @return list<Feature> the chosen features that have a package */
@@ -198,7 +242,8 @@ final class InitCommand extends PhpbmCommand
         return $this->choose($kind, $label, array_map(static fn (Module $m) => $m->description, $fitting));
     }
 
-    private function write(string $dir, string $name, Sdk $sdk, string $board, string $runtime, string $storage): void
+    /** @param array<string,string> $require packages required next to the conductor */
+    private function write(string $dir, string $name, Sdk $sdk, string $board, string $runtime, string $storage, array $require = []): void
     {
         $releases = $sdk->descriptor->php;
         uksort($releases, 'version_compare');
@@ -210,7 +255,7 @@ final class InitCommand extends PhpbmCommand
             'description' => 'php-baremetal firmware',
             'type' => 'project',
             'repositories' => [['type' => 'composer', 'url' => self::repository(), 'canonical' => true]],
-            'require' => ['php-baremetal/conductor' => '^1.0'],
+            'require' => ['php-baremetal/conductor' => '^1.0', ...$require],
             'config' => [
                 'platform' => ['php' => $php],
                 'allow-plugins' => ['php-baremetal/conductor' => true],

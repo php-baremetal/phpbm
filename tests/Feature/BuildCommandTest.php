@@ -190,3 +190,14 @@ it('keeps .phpbm out of the image when the sources are the project root', functi
         ->and(is_file("{$staging}/assets/ui/dot.sli"))->toBeTrue()
         ->and(file_get_contents("{$staging}/index.php"))->toBe("<?php echo 'root';\n");
 });
+
+it('builds for the board of an installed bm-boards package', function () {
+    Fixtures::toolchain($this->home);
+    Fixtures::boardsPackage($this->project . '/.phpbm/packages/acme/boards');
+    $boards = new \PhpBaremetal\Spec\Manifest\Package('acme/boards', 'bm-boards', '1.0.0', '.phpbm/packages/acme/boards', []);
+    Fixtures::project($this->project, ['env' => '.env', 'board' => 'acme/boards:pack-board'], [$boards]);
+
+    $this->artisan('build')->assertExitCode(0);
+
+    expect(Fixtures::calls($this->home))->toBe(['build pack-board 8.4.25 loop {"SSID":"home"} {"on-error":"stop","restart-delay":5}']);
+});

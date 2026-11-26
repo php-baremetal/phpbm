@@ -21,6 +21,8 @@ Everything lives under `~/.phpbm` (on Windows `%USERPROFILE%\.phpbm`):
 | `toolchains/<name>/` | The SDK's toolchain (ESP-IDF and its tools for `esp32`). |
 | `cache/downloads/` | Downloaded SDK, PHP and source archives, checked by sha256. |
 | `cache/trees/` | Extracted and patched PHP sources, shared by every project. |
+| `cache/board-packages.json` | Which packages drive which board block, read from the registry (one hour). |
+| `cache/board-sources/` | The boards (`boards/<sdk>/*.json` only) of the SDK's official board packages, for `phpbm init` (one hour). |
 
 Only `cache/` is safe to delete at any time (`phpbm cache:clear`).
 
@@ -41,6 +43,6 @@ Only `cache/` is safe to delete at any time (`phpbm cache:clear`).
 | --- | --- | --- |
 | `PHPBM_HOME` | `~/.phpbm` | Where phpbm keeps SDKs, toolchains and the cache. |
 | `PHPBM_SDK_INDEX` | `https://github.com/php-baremetal/php-{name}-sdk/releases/download/sdk-preview/index.json` | The release index pattern (the SDK previews until the esp32 SDK 2.0.0 is released, then `https://github.com/php-baremetal/php-{name}-sdk/releases/latest/download/index.json`); `{name}` is the SDK name. A local path or a `file://` URL also works. |
-| `PHPBM_REPOSITORY` | `https://repository.php-baremetal.com` | The package registry `phpbm init` writes into new projects. |
+| `PHPBM_REPOSITORY` | `https://repository.php-baremetal.com` | The package registry `phpbm init` writes into new projects, and where phpbm reads the board packages and the official board packages of the SDK. |
 
 SDKs read their own variables; for `esp32` see [Toolchains](../guide/toolchains.md).

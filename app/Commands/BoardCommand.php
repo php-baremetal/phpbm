@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Commands;
 
 use App\Board\BoardFeatures;
+use App\Board\BoardLabel;
 use App\Board\BoardPackages;
 use App\Board\ChangePlan;
 use App\Board\Feature;
@@ -14,9 +15,11 @@ use App\Project\BoardFit;
 use App\Sdk\SdkResolver;
 use App\Support\Composer;
 use App\Support\Paths;
+use PhpBaremetal\Spec\Manifest\Manifest;
 use PhpBaremetal\Spec\Manifest\SdkRequirement;
 use PhpBaremetal\Spec\Sdk\Descriptor\Board;
 use PhpBaremetal\Spec\Sdk\Sdk;
+use PhpBaremetal\Spec\Sdk\SdkLoader;
 use PhpBaremetal\Spec\SpecException;
 use PhpBaremetal\Spec\Support\Json;
 use stdClass;
@@ -53,13 +56,15 @@ final class BoardCommand extends PhpbmCommand
         $required = is_array($composer['require'] ?? null) ? $composer['require'] : [];
 
         $sdk = app(SdkResolver::class)->resolve($dir, SdkRequirement::parse($baremetal['sdk']), $this->out());
+        $sdk = (new SdkLoader())->withBoardPackages($sdk, self::installedPackages($dir), $dir);
         $current = $baremetal['board'];
         $target = $this->targetBoard($sdk, $current);
+        $targetBoard = $target === null ? null : self::board($sdk, $target);
 
         $boardOverrides = is_array($baremetal['board-overrides'] ?? null) ? $baremetal['board-overrides'] : [];
-        $plan = $target === null || $target === $current
+        $plan = $targetBoard === null || $targetBoard->qualifiedId() === self::currentBoard($sdk, $current)?->qualifiedId()
             ? $this->featuresPlan(self::board($sdk, $current)->withOverrides($boardOverrides), $required)
-            : $this->changePlan($sdk, $boardOverrides, $baremetal, $current, self::board($sdk, $target), $required);
+            : $this->changePlan($sdk, $boardOverrides, $baremetal, $current, $targetBoard, $required);
 
         if ($plan->isEmpty()) {
             $this->line('nothing to change');
@@ -91,14 +96,47 @@ final class BoardCommand extends PhpbmCommand
         if (!$this->input->isInteractive()) {
             throw new PhpbmException('--change asks for the board: pass the board id instead (phpbm board <id>)');
         }
-        $options = array_map(static fn (Board $b): string => "{$b->name} ({$b->id})", $sdk->boards);
-        return (string) select('Board', $options, default: array_key_exists($current, $options) ? $current : null);
+        $options = array_map(BoardLabel::label(...), $sdk->boards);
+        $default = self::currentBoard($sdk, $current);
+        return (string) select('Board', $options, default: $default === null ? null : BoardLabel::key($sdk, $default));
     }
 
+    /** The bm-boards packages installed in the project, from its manifest (none when there is no readable manifest). @return list<\PhpBaremetal\Spec\Manifest\Package> */
+    private static function installedPackages(string $dir): array
+    {
+        $file = "{$dir}/" . Manifest::PATH;
+        if (!is_file($file)) {
+            return [];
+        }
+        try {
+            return Manifest::fromFile($file)->ofKind('boards');
+        } catch (SpecException) {
+            return [];
+        }
+    }
+
+    /** A board by its id or long form; an id that two sources define asks for the long form. */
     private static function board(Sdk $sdk, string $id): Board
     {
-        return $sdk->boards[$id]
-            ?? throw new PhpbmException("board '{$id}' does not exist in sdk {$sdk->descriptor->name} {$sdk->descriptor->version}");
+        if (!isset($sdk->boards[$id]) && !str_contains($id, ':') && !self::isDefinedTwice($sdk, $id)) {
+            throw new PhpbmException("board '{$id}' does not exist in sdk {$sdk->descriptor->name} {$sdk->descriptor->version}");
+        }
+        return $sdk->board($id);
+    }
+
+    private static function isDefinedTwice(Sdk $sdk, string $id): bool
+    {
+        return count(array_filter($sdk->boards, static fn (Board $b): bool => $b->id === $id)) > 1;
+    }
+
+    /** The current board, or null when it does not exist (anymore) or is ambiguous. */
+    private static function currentBoard(Sdk $sdk, string $id): ?Board
+    {
+        try {
+            return $sdk->board($id);
+        } catch (SpecException) {
+            return null;
+        }
     }
 
     /** 3.1: add or remove features of the current board (with its overrides). @param array<string,mixed> $required */
@@ -139,7 +177,7 @@ final class BoardCommand extends PhpbmCommand
         $retyped = [];
         $unchipped = [];
         $chip = $sdk->chip($board->chip);
-        $oldBoard = $sdk->boards[$current] ?? null;
+        $oldBoard = self::currentBoard($sdk, $current);
         foreach ($overrides as $block => $entry) {
             $block = (string) $block;
             $type = is_array($entry) && array_key_exists('type', $entry) ? $entry['type'] : null;
@@ -170,7 +208,7 @@ final class BoardCommand extends PhpbmCommand
 
         $index = app(BoardPackages::class)->index($this->out(), (bool) $this->option('refresh')) ?? [];
         $features = BoardFeatures::of($effective, $index);
-        $old = isset($sdk->boards[$current]) ? BoardFeatures::of(self::withOverridesOrPlain($sdk->boards[$current], $overrides), $index) : [];
+        $old = $oldBoard !== null ? BoardFeatures::of(self::withOverridesOrPlain($oldBoard, $overrides), $index) : [];
 
         $selectable = FeatureChoice::selectable($features);
         $chosen = $this->chooseFeatures($board, $features, $selectable);
@@ -221,7 +259,7 @@ final class BoardCommand extends PhpbmCommand
             }
         }
 
-        return new ChangePlan($board->id, $unset, $remove, $plan->require);
+        return new ChangePlan(BoardLabel::key($sdk, $board), $unset, $remove, $plan->require);
     }
 
     /**

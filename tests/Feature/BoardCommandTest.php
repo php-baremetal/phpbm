@@ -589,3 +589,67 @@ it('merges an added block into the same block of the new board', function () {
     expect(composerCalls($this->log))->toBe(['config extra.baremetal.board demo-board'])
         ->and(composerJson($this->dir)['extra']['baremetal']['board-overrides'])->toBe(['microsd' => BC_SD]);
 });
+
+/** Installs a bm-boards package in the project: its folder and the manifest that lists it. @param array<string,string> $boards */
+function boardsInstalled(string $dir, array $boards = ['pack-board' => Fixtures::PACK_BOARD]): void
+{
+    Fixtures::boardsPackage("{$dir}/.phpbm/packages/acme/boards", $boards);
+    $baremetal = ['sdk' => 'demo@^1.0', 'board' => 'demo-screen', 'runtime' => 'loop', 'storage' => 'embedded'];
+    $manifest = new \PhpBaremetal\Spec\Manifest\Manifest(
+        \PhpBaremetal\Spec\Manifest\Project::fromComposer('local/blink', $baremetal, '8.4.25'),
+        [new \PhpBaremetal\Spec\Manifest\Package('acme/boards', 'bm-boards', '1.0.0', '.phpbm/packages/acme/boards', [])],
+    );
+    file_put_contents("{$dir}/" . \PhpBaremetal\Spec\Manifest\Manifest::PATH, $manifest->toJson());
+}
+
+it('changes to the board of an installed bm-boards package', function () {
+    boardProject($this->dir, ['board' => 'demo-net']);
+    boardsInstalled($this->dir);
+
+    $this->artisan('board', ['board' => 'pack-board', '--no-install' => true, '--features' => 'none', '--no-interaction' => true])
+        ->expectsOutputToContain('board: pack-board')
+        ->assertExitCode(0);
+
+    expect(composerJson($this->dir)['extra']['baremetal']['board'])->toBe('pack-board');
+});
+
+it('lists the boards of installed bm-boards packages with --change', function () {
+    boardProject($this->dir, ['board' => 'demo-net']);
+    boardsInstalled($this->dir);
+    $this->env = app()['env'];
+    app()['env'] = 'testing';
+
+    $this->artisan('board', ['--change' => true, '--features' => 'none'])
+        ->expectsChoice('Board', 'pack-board', [
+            'demo-board' => 'Demo board (demo-board)',
+            'demo-net' => 'Demo net (demo-net)',
+            'demo-screen' => 'Demo screen (demo-screen)',
+            'demo-sdio' => 'Demo sdio (demo-sdio)',
+            'pack-board' => 'Pack board (pack-board) · acme/boards',
+        ])
+        ->expectsOutputToContain('board: pack-board')
+        ->assertExitCode(0);
+});
+
+it('asks for the long form of a board id two sources define, and writes it', function () {
+    boardProject($this->dir, ['board' => 'demo-net']);
+    boardsInstalled($this->dir, ['demo-board' => Fixtures::PACK_BOARD]);
+
+    $this->artisan('board', ['board' => 'demo-board', '--no-install' => true, '--features' => 'none', '--no-interaction' => true])
+        ->expectsOutputToContain("board 'demo-board' is defined by the sdk and acme/boards: use 'sdk:demo-board' or 'acme/boards:demo-board'")
+        ->assertExitCode(1);
+
+    $this->artisan('board', ['board' => 'acme/boards:demo-board', '--no-install' => true, '--features' => 'none', '--no-interaction' => true])
+        ->expectsOutputToContain('board: acme/boards:demo-board')
+        ->assertExitCode(0);
+    expect(composerJson($this->dir)['extra']['baremetal']['board'])->toBe('acme/boards:demo-board');
+});
+
+it('works on the features of a package board', function () {
+    boardProject($this->dir, ['board' => 'pack-board']);
+    boardsInstalled($this->dir);
+
+    $this->artisan('board', ['--features' => 'none', '--no-interaction' => true])
+        ->expectsOutputToContain('nothing to change')
+        ->assertExitCode(0);
+});

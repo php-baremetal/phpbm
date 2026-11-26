@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.4.0
+
+- Added: boards from Composer packages of type `bm-boards` (needs php-baremetal/spec 1.4). The boards in `boards/<sdk>/*.json` of the project's installed `bm-boards` packages are checked like the SDK's and work everywhere phpbm loads the SDK for a project: build, flash, sync, monitor, toolchain:install, sdk:update, phpbm board (by id and in the `--change` list, shown as `Name (id) · <package>`) and phpbm discover run in a project folder.
+- Added: a board id that two sources define (the SDK, packages) is an error that names both and asks for the long form, `<vendor>/<package>:<id>` or `sdk:<id>`, which `extra.baremetal.board`, phpbm board and `phpbm init --board` accept.
+- Added: phpbm init offers the boards of the official board packages the SDK lists in `sdk.json` (`board-packages`), shown as `Name (id) · <package>`. It reads each package's metadata from the registry (`PHPBM_REPOSITORY`), downloads the dist archive of its latest stable version and keeps only its `boards/<sdk>/*.json` files, cached for an hour in `~/.phpbm/cache/board-sources`; offline it uses the cache with a warning, or offers only the SDK's boards. Choosing a board of a package adds `"<package>": "^<major>.<minor>"` to the project's `require`.
+- Added: when the chosen board's id is defined by more than one of the sources phpbm init lists (the SDK and an official package, or two packages), phpbm init writes the long form (`sdk:<id>` or `<vendor>/<package>:<id>`) in `extra.baremetal.board` instead of the short id.
+- Changed: phpbm requires php-baremetal/spec ^1.4.
+
 ## 0.3.1
 
 - Fixed: phpbm 0.3.0 got php-baremetal/spec 1.3.0 (in the PHAR and through Composer), whose published copy still refused a board-overrides entry for a block the board does not have ("board-overrides: board '...' has no 'microsd' to override"), so adding a block did not work. phpbm now requires php-baremetal/spec 1.3.1, which adds the block when the entry gives its `type`.

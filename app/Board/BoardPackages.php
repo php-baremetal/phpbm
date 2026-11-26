@@ -6,11 +6,7 @@ namespace App\Board;
 
 use App\Commands\InitCommand;
 use App\Support\Home;
-use App\Support\Paths;
 use Closure;
-use Composer\Semver\Comparator;
-use Composer\Semver\VersionParser;
-use JsonException;
 use PhpBaremetal\Spec\Sdk\Output;
 use Throwable;
 
@@ -18,9 +14,6 @@ use Throwable;
 final class BoardPackages
 {
     private const TTL = 3600;
-
-    /** Seconds an HTTP read of the registry may take. */
-    private const TIMEOUT = 10;
 
     /** Grammar of a board-blocks entry, the same as the spec's ManifestValidator. */
     private const BLOCK = '/^[a-z0-9]+:[a-z0-9][a-z0-9-]*$/D';
@@ -107,30 +100,7 @@ final class BoardPackages
     /** @param array<string,mixed> $data @return list<string> */
     private function blocks(string $name, array $data): array
     {
-        $versions = $data['packages'][$name] ?? null;
-        if (!is_array($versions)) {
-            throw new \UnexpectedValueException('no versions');
-        }
-
-        $parser = new VersionParser();
-        $best = null;
-        foreach (self::expand($versions) as $entry) {
-            $version = $entry['version'] ?? null;
-            if (!is_string($version)) {
-                continue;
-            }
-            try {
-                if ($parser->parseStability($version) !== 'stable') {
-                    continue;
-                }
-                if ($best === null || Comparator::greaterThan($version, $best['version'])) {
-                    $best = $entry;
-                }
-            } catch (\UnexpectedValueException) {
-                continue; // an invalid version string skips only this entry
-            }
-        }
-
+        $best = Registry::latestStable($name, $data);
         $blocks = $best['extra']['baremetal']['board-blocks'] ?? [];
         if (!is_array($blocks)) {
             return [];
@@ -138,100 +108,21 @@ final class BoardPackages
         return array_values(array_filter($blocks, static fn ($b): bool => is_string($b) && preg_match(self::BLOCK, $b) === 1));
     }
 
-    /**
-     * Composer 2 minified metadata: the first version is complete, the others only carry the keys that
-     * changed; the string "__unset" removes a key.
-     *
-     * @param array<int,mixed> $versions
-     * @return list<array<string,mixed>>
-     */
-    private static function expand(array $versions): array
-    {
-        $out = [];
-        $previous = [];
-        foreach ($versions as $entry) {
-            if (!is_array($entry)) {
-                throw new \UnexpectedValueException('invalid version entry');
-            }
-            foreach ($entry as $key => $value) {
-                if ($value === '__unset') {
-                    unset($previous[$key]);
-                } else {
-                    $previous[$key] = $value;
-                }
-            }
-            $out[] = $previous;
-        }
-        return $out;
-    }
-
-    /**
-     * Reads a JSON document of the registry. A missing document (HTTP 404, or a local file that does not exist)
-     * throws an UnreadableException with notFound; any other failure to read it (network, timeout, other HTTP
-     * errors) an UnreadableException without.
-     *
-     * @return array<string,mixed>
-     */
+    /** @return array<string,mixed> */
     private function json(string $url): array
     {
-        if (preg_match('#^https?://#i', $url) === 1) {
-            $context = stream_context_create(['http' => ['timeout' => self::TIMEOUT, 'ignore_errors' => true]]);
-            $raw = @file_get_contents($url, false, $context);
-            $status = self::status(http_get_last_response_headers() ?? []);
-            if ($status === 404) {
-                throw new UnreadableException("{$url}: 404", notFound: true);
-            }
-            if ($raw === false || $status === null || $status >= 400) {
-                throw new UnreadableException("cannot read {$url}" . ($status !== null ? " (HTTP {$status})" : ''));
-            }
-        } else {
-            $path = Paths::local($url);
-            $raw = is_file($path) ? @file_get_contents($path) : false;
-            if ($raw === false) {
-                throw new UnreadableException("cannot read {$url}", notFound: !file_exists($path));
-            }
-        }
-        try {
-            $data = json_decode($raw, true, 512, JSON_THROW_ON_ERROR);
-        } catch (JsonException $e) {
-            throw new \RuntimeException("invalid json in {$url}: {$e->getMessage()}");
-        }
-        if (!is_array($data)) {
-            throw new \RuntimeException("unexpected content in {$url}");
-        }
-        return $data;
-    }
-
-    /** The status of the last HTTP response (after redirects) in a list of response headers. @param list<string> $headers */
-    private static function status(array $headers): ?int
-    {
-        $status = null;
-        foreach ($headers as $header) {
-            if (preg_match('#^HTTP/\S+\s+(\d{3})#', $header, $m) === 1) {
-                $status = (int) $m[1];
-            }
-        }
-        return $status;
+        return Registry::json($url);
     }
 
     private function resolve(string $url): string
     {
-        return self::resolveUrl($this->registry, $url);
+        return Registry::resolveUrl($this->registry, $url);
     }
 
     /** Resolves a (possibly relative) url of packages.json against the registry address. */
     public static function resolveUrl(string $registry, string $url): string
     {
-        if (preg_match('#^[a-z][a-z0-9+.-]*://#i', $url) === 1) {
-            return $url;
-        }
-        if (str_starts_with($url, '/') && preg_match('#^(https?://[^/]+)#i', $registry, $m) === 1) {
-            return $m[1] . $url;
-        }
-        if (Paths::isAbsolute($url)) {
-            return $url;
-        }
-        return rtrim($registry, '/\\') . '/' . ltrim($url, '/');
+        return Registry::resolveUrl($registry, $url);
     }
 
     /** @return array{time:int, index:array<string,list<string>>}|null */
