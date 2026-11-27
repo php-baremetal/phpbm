@@ -284,6 +284,34 @@ it('chooses the new board from a list with --change', function () {
     expect(composerCalls($this->log))->toBe(['config extra.baremetal.board demo-board']);
 });
 
+it('leaves the coming-soon boards out of the --change list, but the current one', function () {
+    $sha = app(App\Sdk\SdkIndex::class)->versions('demo')['1.0.0']['sha256'];
+    app(App\Sdk\SdkResolver::class)->ensure('demo', '1.0.0', $sha, new PhpBaremetal\Spec\Testing\BufferedOutput());
+    Fixtures::comingSoon(app(App\Support\Home::class)->sdks() . '/demo/1.0.0', ['demo-board', 'demo-net']);
+    boardProject($this->dir, ['board' => 'demo-net']);
+    $this->env = app()['env'];
+    app()['env'] = 'testing';
+
+    $this->artisan('board', ['--change' => true, '--features' => 'none'])
+        ->expectsChoice('Board', 'demo-sdio', [
+            'demo-net' => 'Demo net (demo-net)',
+            'demo-screen' => 'Demo screen (demo-screen)',
+            'demo-sdio' => 'Demo sdio (demo-sdio)',
+        ])
+        ->assertExitCode(0);
+});
+
+it('takes a coming-soon board by id', function () {
+    $sha = app(App\Sdk\SdkIndex::class)->versions('demo')['1.0.0']['sha256'];
+    app(App\Sdk\SdkResolver::class)->ensure('demo', '1.0.0', $sha, new PhpBaremetal\Spec\Testing\BufferedOutput());
+    Fixtures::comingSoon(app(App\Support\Home::class)->sdks() . '/demo/1.0.0', ['demo-board']);
+    boardProject($this->dir, ['board' => 'demo-net']);
+
+    $this->artisan('board', ['board' => 'demo-board', '--features' => 'none'])->assertExitCode(0);
+
+    expect(composerCalls($this->log))->toBe(['config extra.baremetal.board demo-board']);
+});
+
 it('refuses a board the storage cannot use and leaves composer.json as it is', function () {
     $file = boardProject($this->dir, ['board' => 'demo-board', 'storage' => 'microsd']);
     $before = file_get_contents($file);

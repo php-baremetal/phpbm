@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Commands;
 
+use App\Board\BoardCatalog;
 use App\Board\BoardFeatures;
 use App\Board\BoardLabel;
 use App\Board\BoardPackages;
@@ -56,9 +57,10 @@ final class BoardCommand extends PhpbmCommand
         $required = is_array($composer['require'] ?? null) ? $composer['require'] : [];
 
         $sdk = app(SdkResolver::class)->resolve($dir, SdkRequirement::parse($baremetal['sdk']), $this->out());
-        $sdk = (new SdkLoader())->withBoardPackages($sdk, self::installedPackages($dir), $dir);
+        $packages = self::installedPackages($dir);
+        $sdk = (new SdkLoader())->withBoardPackages($sdk, $packages, $dir);
         $current = $baremetal['board'];
-        $target = $this->targetBoard($sdk, $current);
+        $target = $this->targetBoard($sdk, $current, BoardCatalog::of($sdk, $packages, $dir));
         $targetBoard = $target === null ? null : self::board($sdk, $target);
 
         $boardOverrides = is_array($baremetal['board-overrides'] ?? null) ? $baremetal['board-overrides'] : [];
@@ -84,7 +86,7 @@ final class BoardCommand extends PhpbmCommand
     }
 
     /** The board the user asked for: the argument, or one chosen from the list with --change. */
-    private function targetBoard(Sdk $sdk, string $current): ?string
+    private function targetBoard(Sdk $sdk, string $current, BoardCatalog $catalog): ?string
     {
         $board = $this->argument('board');
         if (is_string($board) && $board !== '') {
@@ -96,8 +98,10 @@ final class BoardCommand extends PhpbmCommand
         if (!$this->input->isInteractive()) {
             throw new PhpbmException('--change asks for the board: pass the board id instead (phpbm board <id>)');
         }
-        $options = array_map(BoardLabel::label(...), $sdk->boards);
+        // Like init, the list leaves out the coming-soon boards (but the current one); `phpbm board <id>` takes them.
         $default = self::currentBoard($sdk, $current);
+        $offered = array_filter($sdk->boards, static fn (Board $b): bool => !$catalog->comingSoon($b) || $b === $default);
+        $options = array_map(BoardLabel::label(...), $offered);
         return (string) select('Board', $options, default: $default === null ? null : BoardLabel::key($sdk, $default));
     }
 

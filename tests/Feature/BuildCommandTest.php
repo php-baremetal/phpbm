@@ -201,3 +201,42 @@ it('builds for the board of an installed bm-boards package', function () {
 
     expect(Fixtures::calls($this->home))->toBe(['build pack-board 8.4.25 loop {"SSID":"home"} {"on-error":"stop","restart-delay":5}']);
 });
+
+describe('coming-soon board', function () {
+    beforeEach(function () {
+        Fixtures::toolchain($this->home);
+        $sha = app(App\Sdk\SdkIndex::class)->versions('demo')['1.0.0']['sha256'];
+        app(App\Sdk\SdkResolver::class)->ensure('demo', '1.0.0', $sha, new PhpBaremetal\Spec\Testing\BufferedOutput());
+        $this->sdkDir = app(App\Support\Home::class)->sdks() . '/demo/1.0.0';
+    });
+
+    it('greets once after building for a board the sdk catalog marks coming soon', function () {
+        Fixtures::comingSoon($this->sdkDir, ['demo-board']);
+
+        $this->artisan('build')
+            ->expectsOutputToContain('built 1 image(s)')
+            ->expectsOutputToContain(App\Board\ComingSoon::MESSAGE)
+            ->assertExitCode(0);
+    });
+
+    it('does not greet for another board', function () {
+        Fixtures::comingSoon($this->sdkDir, ['demo-net']);
+
+        $this->artisan('build')->doesntExpectOutputToContain(App\Board\ComingSoon::MESSAGE)->assertExitCode(0);
+    });
+
+    it('does not greet with --quiet', function () {
+        Fixtures::comingSoon($this->sdkDir, ['demo-board']);
+
+        $this->artisan('build', ['--quiet' => true])->doesntExpectOutputToContain(App\Board\ComingSoon::MESSAGE)->assertExitCode(0);
+    });
+
+    it('greets for the board of a package whose catalog marks it coming soon', function () {
+        $package = Fixtures::boardsPackage($this->project . '/.phpbm/packages/acme/boards');
+        Fixtures::comingSoon($package, ['pack-board']);
+        $boards = new \PhpBaremetal\Spec\Manifest\Package('acme/boards', 'bm-boards', '1.0.0', '.phpbm/packages/acme/boards', []);
+        Fixtures::project($this->project, ['env' => '.env', 'board' => 'pack-board'], [$boards]);
+
+        $this->artisan('build')->expectsOutputToContain(App\Board\ComingSoon::MESSAGE)->assertExitCode(0);
+    });
+});

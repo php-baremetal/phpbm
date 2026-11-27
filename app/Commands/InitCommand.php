@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 namespace App\Commands;
 
+use App\Board\BoardCatalog;
 use App\Board\BoardFeatures;
 use App\Board\BoardLabel;
 use App\Board\BoardPackages;
 use App\Board\BoardSources;
+use App\Board\ComingSoon;
 use App\Board\Feature;
 use App\Board\FeatureChoice;
 use App\PhpbmException;
@@ -61,7 +63,10 @@ final class InitCommand extends PhpbmCommand
         }
 
         [$sdk, $sources] = $this->withOfficialBoards($sdk);
-        $board = $sdk->board($this->choose('board', 'Board', array_map(BoardLabel::label(...), $sdk->boards)));
+        // Coming-soon boards are not offered; --board still takes them.
+        $catalog = BoardCatalog::of($sdk, $sources);
+        $offered = array_filter($sdk->boards, static fn (Board $b): bool => !$catalog->comingSoon($b));
+        $board = $sdk->board($this->choose('board', 'Board', array_map(BoardLabel::label(...), $offered === [] ? $sdk->boards : $offered)));
         $features = $this->chooseFeatures($board);
         $runtime = $sdk->runtime($this->chooseModule('runtime', 'Runtime', $sdk->runtimes, $board, $sdk));
         $storage = $sdk->storage($this->chooseModule('storage', 'Storage', $sdk->storages, $board, $sdk));
@@ -105,6 +110,10 @@ final class InitCommand extends PhpbmCommand
                 $this->error($e->getMessage());
                 $failed = $showCommands = true;
             }
+        }
+
+        if ($catalog->comingSoon($board)) {
+            ComingSoon::greet($this->out());
         }
 
         $this->line('next:');

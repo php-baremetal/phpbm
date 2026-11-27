@@ -110,3 +110,35 @@ it('lists the boards of the bm-boards packages of the project in the current fol
         chdir($cwd);
     }
 });
+
+it('lists a coming-soon board with a suffix but never suggests it', function () {
+    installDemo();
+    Fixtures::comingSoon(app(App\Support\Home::class)->sdks() . '/demo/1.0.0', ['demo-board']);
+    Fixtures::toolchain($this->home, ['chips' => ['/dev/x' => 'demo'], 'flash' => ['/dev/x' => '4MB']]);
+
+    $this->artisan('discover', ['--port' => '/dev/x'])
+        ->expectsOutputToContain('board   demo-board  Demo board (coming soon)')
+        ->doesntExpectOutputToContain('use     ')
+        ->doesntExpectOutputToContain('none of these fits')
+        ->assertExitCode(0);
+});
+
+it('marks a coming-soon board of a project package', function () {
+    installDemo();
+    $cwd = getcwd();
+    $project = Fixtures::tempDir();
+    Fixtures::comingSoon(Fixtures::boardsPackage("{$project}/.phpbm/packages/acme/boards"), ['pack-board']);
+    $boards = new \PhpBaremetal\Spec\Manifest\Package('acme/boards', 'bm-boards', '1.0.0', '.phpbm/packages/acme/boards', []);
+    Fixtures::project($project, [], [$boards]);
+    Fixtures::toolchain($this->home, ['chips' => ['/dev/x' => 'demo'], 'flash' => ['/dev/x' => '4MB']]);
+    chdir($project);
+
+    try {
+        $this->artisan('discover', ['--port' => '/dev/x'])
+            ->expectsOutputToContain('board   pack-board  Pack board · acme/boards (coming soon)')
+            ->expectsOutputToContain('use     "board": "demo-board" in extra.baremetal')
+            ->assertExitCode(0);
+    } finally {
+        chdir($cwd);
+    }
+});

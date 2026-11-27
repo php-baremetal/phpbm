@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Commands;
 
+use App\Board\BoardCatalog;
+use App\Board\ComingSoon;
 use App\Build\Builder;
 use App\Build\MergedImage;
 use App\Project\ConductorCheck;
@@ -28,6 +30,11 @@ final class BuildCommand extends PhpbmCommand
             $target = $build->artifacts->buildDir . '/' . self::MERGED;
             $size = MergedImage::write($build->artifacts->images, $target);
             $this->info(sprintf('merged image: %s (%d bytes, write it at offset 0x0)', $target, $size));
+        }
+
+        $plan = $build->plan;
+        if (BoardCatalog::of($plan->sdk, $plan->manifest->packages, $plan->projectDir)->comingSoon($plan->board)) {
+            ComingSoon::greet($this->out());
         }
 
         return self::SUCCESS;

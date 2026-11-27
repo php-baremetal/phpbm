@@ -62,6 +62,9 @@ metadata or without a stable dist archive is skipped with a warning. In the menu
 package: `Name (id) · php-baremetal/boards-waveshare`. When two sources have the same id, choose with the long form;
 `extra.baremetal.board` then gets the long form too (`sdk:<id>` or `<vendor>/<package>:<id>`).
 
+A board that `boards/catalog.json` of the SDK (or of its package) marks `"coming-soon": true` is not in the menu and
+never the default; `--board <id>` still takes it. `init` and `build` then greet you once.
+
 When the chosen board comes from a package, phpbm adds the package to the project's `require` as
 `^major.minor` of the version it read (`"php-baremetal/boards-waveshare": "^1.0"`), so Composer installs it with
 the project. Boards of other `bm-boards` packages are not offered by `init`: `composer require` the package in the
@@ -110,7 +113,7 @@ the features of the current board.
 <!-- @endparam -->
 <!-- @param name="--change" type="flag" -->
 Choose the new board from the list of the SDK's boards and those of the project's `bm-boards` packages, shown
-as `Name (id) · <package>` (needs a terminal).
+as `Name (id) · <package>` (needs a terminal). Coming-soon boards are left out, unless one is the current board.
 <!-- @endparam -->
 <!-- @param name="--features" type="string" -->
 The features to have after the command: `all`, `none` or kinds separated by commas (`display,i2c`). It replaces
@@ -255,7 +258,8 @@ size, MAC, radios), the SDK that recognised it and the boards of that SDK built 
 flash than the chip is marked `(needs 16MB of flash)`. When exactly one board fits, the last line is the
 `"board"` entry to put in `extra.baremetal`. Run it to pick the `board` of a new project, or to check which
 port a board is on. It works outside a project; in a project folder it lists the boards of the project's
-`bm-boards` packages too, followed by their package (`· php-baremetal/boards-waveshare`).
+`bm-boards` packages too, followed by their package (`· php-baremetal/boards-waveshare`). A coming-soon board
+is listed with ` (coming soon)` and never suggested in the `use` line.
 
 <!-- @code-block language="Text" label="phpbm discover" -->
 ```text

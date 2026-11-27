@@ -198,6 +198,18 @@ final class Fixtures
         file_put_contents("{$registry}/p2/{$name}.json", json_encode(['packages' => [$name => $entries]], JSON_UNESCAPED_SLASHES));
     }
 
+    /**
+     * Writes boards/catalog.json in an sdk or bm-boards package folder, marking the given boards "coming-soon".
+     *
+     * @param list<string> $ids
+     */
+    public static function comingSoon(string $dir, array $ids, string $sdk = 'demo'): void
+    {
+        $entries = array_fill_keys($ids, ['coming-soon' => true]);
+        @mkdir("{$dir}/boards", 0777, true);
+        file_put_contents("{$dir}/boards/catalog.json", json_encode([$sdk => $entries], JSON_PRETTY_PRINT));
+    }
+
     public static function copyDir(string $from, string $to): void
     {
         @mkdir($to, 0777, true);

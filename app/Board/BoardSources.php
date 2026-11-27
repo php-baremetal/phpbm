@@ -21,7 +21,7 @@ use Throwable;
  * The boards of the official bm-boards packages an SDK lists (sdk.json "board-packages"), for `phpbm init`: read from
  * the dist archive of each package's latest stable version in the Composer v2 registry, and cached for an hour.
  *
- * Archives are untrusted: each one is extracted into a new folder and only boards/<sdk>/*.json is kept, as data.
+ * Archives are untrusted: each one is extracted into a new folder and only boards/<sdk>/*.json and boards/catalog.json are kept, as data.
  */
 final class BoardSources
 {
@@ -32,6 +32,9 @@ final class BoardSources
 
     /** Composer package name, as the spec checks board-packages. */
     private const NAME = '#^[a-z0-9]([_.-]?[a-z0-9]+)*/[a-z0-9](([_.]|-{1,2})?[a-z0-9]+)*$#D';
+
+    /** Largest boards/catalog.json kept, in bytes. */
+    private const MAX_CATALOG = 1024 * 1024;
 
     private const VERSION = '#^v?[0-9][0-9A-Za-z.+_-]*$#D';
 
@@ -143,7 +146,7 @@ final class BoardSources
         return $versions;
     }
 
-    /** Extracts the archive into a new folder and keeps only boards/<sdk>/*.json in $dir. @param array<string,mixed> $dist */
+    /** Extracts the archive into a new folder and keeps only boards/<sdk>/*.json and boards/catalog.json in $dir. @param array<string,mixed> $dist */
     private function download(string $sdkName, string $name, string $version, array $dist, string $dir): void
     {
         $extension = match ($dist['type']) {
@@ -176,6 +179,11 @@ final class BoardSources
                         throw new RuntimeException("cannot copy {$file}");
                     }
                 }
+            }
+
+            $catalog = "{$root}/" . BoardCatalog::FILE;
+            if (!is_link("{$root}/boards") && !is_link($catalog) && is_file($catalog) && filesize($catalog) <= self::MAX_CATALOG) {
+                @copy($catalog, "{$tmp}/boards/" . BoardCatalog::FILE);
             }
 
             $files->ensureDirectoryExists(dirname($dir));

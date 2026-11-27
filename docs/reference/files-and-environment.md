@@ -22,7 +22,7 @@ Everything lives under `~/.phpbm` (on Windows `%USERPROFILE%\.phpbm`):
 | `cache/downloads/` | Downloaded SDK, PHP and source archives, checked by sha256. |
 | `cache/trees/` | Extracted and patched PHP sources, shared by every project. |
 | `cache/board-packages.json` | Which packages drive which board block, read from the registry (one hour). |
-| `cache/board-sources/` | The boards (`boards/<sdk>/*.json` only) of the SDK's official board packages, for `phpbm init` (one hour). |
+| `cache/board-sources/` | The boards (`boards/<sdk>/*.json` and `boards/catalog.json` only) of the SDK's official board packages, for `phpbm init` (one hour). |
 
 Only `cache/` is safe to delete at any time (`phpbm cache:clear`).
 

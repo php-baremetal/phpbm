@@ -328,12 +328,58 @@ it('rejects an unknown kind when the registry has no board packages', function (
         ->assertExitCode(1);
 });
 
+describe('coming-soon boards', function () {
+    beforeEach(function () {
+        installDemoSdk();
+        Fixtures::comingSoon(app(App\Support\Home::class)->sdks() . '/demo/1.0.0', ['demo-board']);
+    });
+
+    it('does not offer a board the sdk catalog marks coming soon', function () {
+        $this->env = app()['env'];
+        app()['env'] = 'testing';
+
+        $this->artisan('init', ['dir' => $this->dir, '--runtime' => 'loop', '--storage' => 'embedded', '--features' => 'none'])
+            ->expectsQuestion('Project name', 'blink')
+            ->expectsChoice('Board', 'demo-net', [
+                'demo-net' => 'Demo net (demo-net)',
+                'demo-screen' => 'Demo screen (demo-screen)',
+                'demo-sdio' => 'Demo sdio (demo-sdio)',
+            ])
+            ->doesntExpectOutputToContain(App\Board\ComingSoon::MESSAGE)
+            ->assertExitCode(0);
+    });
+
+    it('never picks it by default', function () {
+        $this->artisan('init', ['dir' => $this->dir, '--no-interaction' => true])
+            ->doesntExpectOutputToContain(App\Board\ComingSoon::MESSAGE)
+            ->assertExitCode(0);
+
+        expect(json_decode(file_get_contents($this->dir . '/composer.json'), true)['extra']['baremetal']['board'])->toBe('demo-net');
+    });
+
+    it('takes it with --board and greets once', function (string $board) {
+        $this->artisan('init', ['dir' => $this->dir, '--board' => $board, '--features' => 'none', '--no-interaction' => true])
+            ->expectsOutputToContain('\\_)  |__||__||_|')
+            ->expectsOutputToContain(App\Board\ComingSoon::MESSAGE)
+            ->assertExitCode(0);
+
+        expect(json_decode(file_get_contents($this->dir . '/composer.json'), true)['extra']['baremetal']['board'])->toBe('demo-board');
+    })->with(['demo-board', 'sdk:demo-board']);
+
+    it('does not greet with --quiet', function () {
+        $this->artisan('init', ['dir' => $this->dir, '--board' => 'demo-board', '--features' => 'none', '--no-interaction' => true, '--quiet' => true])
+            ->doesntExpectOutputToContain(App\Board\ComingSoon::MESSAGE)
+            ->assertExitCode(0);
+    });
+});
+
 /** The demo sdk lists php-baremetal/boards-demo, published at 1.2.0 with pack-board in a registry that PHPBM_REPOSITORY names. */
 /**
  * @param array<string,string> $boards id => JSON of the boards of php-baremetal/boards-demo 1.2.0
  * @param list<string> $packages the sdk's board-packages
+ * @param list<string> $comingSoon boards the package's boards/catalog.json marks "coming-soon"
  */
-function officialBoards(array $boards = ['pack-board' => Fixtures::PACK_BOARD], array $packages = ['php-baremetal/boards-demo']): string
+function officialBoards(array $boards = ['pack-board' => Fixtures::PACK_BOARD], array $packages = ['php-baremetal/boards-demo'], array $comingSoon = []): string
 {
     installDemoSdk();
     Fixtures::withBoardPackages(app(App\Support\Home::class)->sdks() . '/demo/1.0.0', $packages);
@@ -341,6 +387,9 @@ function officialBoards(array $boards = ['pack-board' => Fixtures::PACK_BOARD], 
     $files = [];
     foreach ($boards as $id => $json) {
         $files["boards/demo/{$id}.json"] = $json;
+    }
+    if ($comingSoon !== []) {
+        $files['boards/catalog.json'] = json_encode(['demo' => array_fill_keys($comingSoon, ['coming-soon' => true])]);
     }
     $registry = Fixtures::boardsRegistry([
         '1.2.0' => Fixtures::zip("{$zips}/boards-demo-1.2.0.zip", $files),
@@ -390,6 +439,30 @@ describe('official board packages', function () {
             ->assertExitCode(0);
 
         expect(json_decode(file_get_contents($this->dir . '/composer.json'), true)['require'])->toHaveKey('php-baremetal/boards-demo');
+    });
+
+    it('leaves out a board the package catalog marks coming soon, and greets when it is chosen', function () {
+        officialBoards(['pack-board' => Fixtures::PACK_BOARD, 'pack-soon' => Fixtures::PACK_BOARD], comingSoon: ['pack-soon']);
+        $this->env = app()['env'];
+        app()['env'] = 'testing';
+
+        $this->artisan('init', ['dir' => $this->dir, '--runtime' => 'loop', '--storage' => 'embedded', '--features' => 'none'])
+            ->expectsQuestion('Project name', 'blink')
+            ->expectsChoice('Board', 'pack-board', [
+                'demo-board' => 'Demo board (demo-board)',
+                'demo-net' => 'Demo net (demo-net)',
+                'demo-screen' => 'Demo screen (demo-screen)',
+                'demo-sdio' => 'Demo sdio (demo-sdio)',
+                'pack-board' => 'Pack board (pack-board) · php-baremetal/boards-demo',
+            ])
+            ->doesntExpectOutputToContain(App\Board\ComingSoon::MESSAGE)
+            ->assertExitCode(0);
+
+        $second = Fixtures::tempDir() . '/second';
+        $this->artisan('init', ['dir' => $second, '--board' => 'php-baremetal/boards-demo:pack-soon', '--no-interaction' => true])
+            ->expectsOutputToContain(App\Board\ComingSoon::MESSAGE)
+            ->assertExitCode(0);
+        expect(json_decode(file_get_contents($second . '/composer.json'), true)['extra']['baremetal']['board'])->toBe('pack-soon');
     });
 
     it('reuses the cached boards when the registry is gone', function () {

@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.4.1
+
+- Added: phpbm reads `boards/catalog.json` of the SDK and of `bm-boards` packages. A board marked `"coming-soon": true` is not offered by phpbm init (nor by phpbm board --change, unless it is the current one) and never picked by default, but `--board <id>` and phpbm board <id> take it; phpbm discover lists it as `(coming soon)` without suggesting it. phpbm init and phpbm build greet once when the board is a coming-soon one. A missing or invalid catalog is ignored.
+
 ## 0.4.0
 
 - Added: boards from Composer packages of type `bm-boards` (needs php-baremetal/spec 1.4.1). The boards in `boards/<sdk>/*.json` of the project's installed `bm-boards` packages are checked like the SDK's and work everywhere phpbm loads the SDK for a project: build, flash, sync, monitor, toolchain:install, sdk:update, phpbm board (by id and in the `--change` list, shown as `Name (id) · <package>`) and phpbm discover run in a project folder.

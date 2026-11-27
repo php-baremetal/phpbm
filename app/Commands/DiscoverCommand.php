@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Commands;
 
+use App\Board\BoardCatalog;
 use App\Board\BoardLabel;
 use App\PhpbmException;
 use App\Sdk\DriverFactory;
@@ -40,7 +41,7 @@ final class DiscoverCommand extends PhpbmCommand
                 }
             }
             try {
-                $drivers[] = [$sdk, $factory->for($sdk)];
+                $drivers[] = [$sdk, $factory->for($sdk), BoardCatalog::of($sdk, $packages, Paths::cwd())];
             } catch (\Throwable $e) {
                 $this->warn("  {$name}: {$e->getMessage()}");
             }
@@ -94,10 +95,10 @@ final class DiscoverCommand extends PhpbmCommand
         }
     }
 
-    /** @param list<array{0: \PhpBaremetal\Spec\Sdk\Sdk, 1: \PhpBaremetal\Spec\Sdk\Driver}> $drivers */
+    /** @param list<array{0: \PhpBaremetal\Spec\Sdk\Sdk, 1: \PhpBaremetal\Spec\Sdk\Driver, 2: BoardCatalog}> $drivers */
     private function describe(Port $port, array $drivers): void
     {
-        foreach ($drivers as [$sdk, $driver]) {
+        foreach ($drivers as [$sdk, $driver, $catalog]) {
             try {
                 $chip = $driver->identify($port);
             } catch (\Throwable $e) {
@@ -123,15 +124,19 @@ final class DiscoverCommand extends PhpbmCommand
                 $this->line('  board   none for this chip in the sdk');
             }
             $fitting = [];
+            $fitsAny = false;
             foreach ($boards as $board) {
                 $fits = FlashSize::fits($board->flash, $chip->flashSize);
                 $source = $board->fromSdk() ? '' : " · {$board->source}";
-                $this->line("  board   {$board->id}  {$board->name}{$source}" . ($fits ? '' : "  (needs {$board->flash} of flash)"));
-                if ($fits) {
+                $soon = $catalog->comingSoon($board);
+                $this->line("  board   {$board->id}  {$board->name}{$source}" . ($soon ? ' (coming soon)' : '') . ($fits ? '' : "  (needs {$board->flash} of flash)"));
+                $fitsAny = $fitsAny || $fits;
+                // A coming-soon board is listed but never suggested.
+                if ($fits && !$soon) {
                     $fitting[] = BoardLabel::key($sdk, $board);
                 }
             }
-            if ($boards !== [] && $fitting === []) {
+            if ($boards !== [] && !$fitsAny) {
                 $this->line("  board   none of these fits the chip's {$chip->flashSize} of flash");
             } elseif (count($fitting) === 1) {
                 $this->line("  use     \"board\": \"{$fitting[0]}\" in extra.baremetal");
