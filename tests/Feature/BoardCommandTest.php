@@ -681,3 +681,40 @@ it('works on the features of a package board', function () {
         ->expectsOutputToContain('nothing to change')
         ->assertExitCode(0);
 });
+
+describe('ide board stub', function () {
+    beforeEach(function () {
+        $sha = app(App\Sdk\SdkIndex::class)->versions('demo')['1.0.0']['sha256'];
+        app(App\Sdk\SdkResolver::class)->ensure('demo', '1.0.0', $sha, new PhpBaremetal\Spec\Testing\BufferedOutput());
+        $this->sdkDir = app(App\Support\Home::class)->sdks() . '/demo/1.0.0';
+        $this->stub = $this->dir . '/' . App\Board\IdeBoardStub::PATH;
+    });
+
+    it('writes the pins of the new board', function () {
+        Fixtures::withPins($this->sdkDir, 'demo-net', ['D13' => 48], 'class');
+        boardProject($this->dir, ['options' => ['board-constants' => 'global']]);
+
+        $this->artisan('board', ['board' => 'demo-net', '--no-interaction' => true])->assertExitCode(0);
+
+        expect(file_get_contents($this->stub))->toContain('public const D13 = 48;')
+            ->and(file_get_contents($this->stub))->toContain("namespace {\n    const D13 = 48;\n}");
+    });
+
+    it('writes it with --no-install too, class constants by default', function () {
+        Fixtures::withPins($this->sdkDir, 'demo-net', ['D13' => 48]);
+        boardProject($this->dir);
+
+        $this->artisan('board', ['board' => 'demo-net', '--no-install' => true, '--no-interaction' => true])->assertExitCode(0);
+
+        expect(file_get_contents($this->stub))->toContain('public const D13 = 48;')
+            ->and(file_get_contents($this->stub))->not->toContain('namespace {');
+    });
+
+    it('leaves it alone when there is nothing to change', function () {
+        boardProject($this->dir, [], [BC_DISPLAY => '^1.0', BC_LED => '^1.0']);
+
+        $this->artisan('board', ['--no-interaction' => true])->assertExitCode(0);
+
+        expect(file_exists($this->stub))->toBeFalse();
+    });
+});

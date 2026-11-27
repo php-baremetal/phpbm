@@ -36,6 +36,7 @@ Only `cache/` is safe to delete at any time (`phpbm cache:clear`).
 | `.phpbm/packages/` | The `bm-*` packages, installed by the conductor. |
 | `.phpbm/manifest.json` | The resolved project and package graph, written by the conductor; phpbm reads only this. |
 | `.phpbm/build/` | The firmware build. |
+| `.phpbm/ide/board.php` | The board's pin names for the IDE (`Baremetal\Board\Pin`), written by phpbm init, phpbm board and phpbm build. Do not edit it. |
 
 ## Environment variables
 

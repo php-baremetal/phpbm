@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Build;
 
+use App\Board\IdeBoardStub;
 use App\PhpbmException;
 use App\Project\EnvFile;
 use App\Project\Project;
@@ -30,6 +31,7 @@ final readonly class Builder
     {
         $target = $this->plan($project, $out, $clean);
         $plan = $this->withSources($this->withAssets($target->plan, $target->assets), $out);
+        IdeBoardStub::write($project->dir, $plan->board, IdeBoardStub::global($plan->options));
 
         return new Build($target->driver, $plan, $target->driver->build($plan, $out));
     }

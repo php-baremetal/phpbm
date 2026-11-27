@@ -11,6 +11,7 @@ use App\Board\BoardPackages;
 use App\Board\ChangePlan;
 use App\Board\Feature;
 use App\Board\FeatureChoice;
+use App\Board\IdeBoardStub;
 use App\PhpbmException;
 use App\Project\BoardFit;
 use App\Sdk\SdkResolver;
@@ -74,13 +75,16 @@ final class BoardCommand extends PhpbmCommand
         }
 
         $overrides = self::remainingOverrides($file, $plan);
+        $newBoard = $plan->board !== null && $targetBoard !== null ? $targetBoard : self::board($sdk, $current);
         if ($this->option('no-install')) {
             $this->rewrite($file, $plan, $overrides);
+            self::writeIdeStub($dir, $sdk, $newBoard, $overrides, $baremetal);
             $this->finish($plan, printCommands: true);
             return self::SUCCESS;
         }
 
         $this->apply($dir, $plan, $overrides);
+        self::writeIdeStub($dir, $sdk, $newBoard, $overrides, $baremetal);
         $this->finish($plan, printCommands: false);
         return self::SUCCESS;
     }
@@ -360,6 +364,22 @@ final class BoardCommand extends PhpbmCommand
             $steps[] = ['require', ...$plan->require];
         }
         return $steps;
+    }
+
+    /**
+     * Rewrites .phpbm/ide/board.php for the project's board with the overrides that remain (pins cannot be
+     * overridden, so a board the overrides do not fit is written plain).
+     *
+     * @param array<string,mixed> $baremetal
+     */
+    private static function writeIdeStub(string $dir, Sdk $sdk, Board $board, ?stdClass $overrides, array $baremetal): void
+    {
+        try {
+            $board = $board->withOverrides($overrides === null ? [] : (array) json_decode(json_encode($overrides, JSON_THROW_ON_ERROR), true));
+        } catch (SpecException) {
+        }
+        $options = is_array($baremetal['options'] ?? null) ? $baremetal['options'] : [];
+        IdeBoardStub::write($dir, $board, IdeBoardStub::global($options, $sdk));
     }
 
     /** The board-overrides left once the plan drops its blocks; null when none is left. */

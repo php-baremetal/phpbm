@@ -226,6 +226,24 @@ final class Fixtures
         file_put_contents("{$sdkDir}/sdk.json", json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
     }
 
+    /**
+     * Gives a board of an sdk folder pin names and, with $constants, declares the sdk option board-constants
+     * (class or global) with that default.
+     *
+     * @param array<string,int> $pins
+     */
+    public static function withPins(string $sdkDir, string $board, array $pins, ?string $constants = null): void
+    {
+        $file = "{$sdkDir}/boards/{$board}.json";
+        $data = json_decode((string) file_get_contents($file), true);
+        file_put_contents($file, json_encode(['pins' => $pins, ...$data], JSON_PRETTY_PRINT));
+        if ($constants !== null) {
+            $sdk = json_decode((string) file_get_contents("{$sdkDir}/sdk.json"), true);
+            $sdk['options']['board-constants'] = ['description' => 'Pin names as globals too', 'values' => ['class', 'global'], 'default' => $constants];
+            file_put_contents("{$sdkDir}/sdk.json", json_encode($sdk, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+        }
+    }
+
     /** @param list<string> $versions */
     public static function bootstrap(array $versions = ['1.0.0']): Home
     {

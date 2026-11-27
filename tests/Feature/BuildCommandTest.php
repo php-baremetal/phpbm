@@ -240,3 +240,57 @@ describe('coming-soon board', function () {
         $this->artisan('build')->expectsOutputToContain(App\Board\ComingSoon::MESSAGE)->assertExitCode(0);
     });
 });
+
+describe('ide board stub', function () {
+    beforeEach(function () {
+        Fixtures::toolchain($this->home);
+        $sha = app(App\Sdk\SdkIndex::class)->versions('demo')['1.0.0']['sha256'];
+        app(App\Sdk\SdkResolver::class)->ensure('demo', '1.0.0', $sha, new PhpBaremetal\Spec\Testing\BufferedOutput());
+        $this->sdkDir = app(App\Support\Home::class)->sdks() . '/demo/1.0.0';
+        $this->stub = $this->project . '/' . App\Board\IdeBoardStub::PATH;
+    });
+
+    it('writes the pins of the board as class constants', function () {
+        Fixtures::withPins($this->sdkDir, 'demo-board', ['D13' => 48, 'A3' => 4]);
+
+        $this->artisan('build')->assertExitCode(0);
+
+        expect(file_get_contents($this->stub))->toContain("public const D13 = 48;\n        public const A3 = 4;")
+            ->and(file_get_contents($this->stub))->not->toContain('namespace {');
+    });
+
+    it('writes an empty class for a board without pins', function () {
+        $this->artisan('build')->assertExitCode(0);
+
+        expect(file_get_contents($this->stub))->toContain("final class Pin\n    {\n    }");
+    });
+
+    it('declares global constants with board-constants global', function () {
+        Fixtures::withPins($this->sdkDir, 'demo-board', ['D13' => 48], 'class');
+        Fixtures::project($this->project, ['env' => '.env', 'options' => ['board-constants' => 'global']]);
+
+        $this->artisan('build')->assertExitCode(0);
+
+        expect(file_get_contents($this->stub))->toContain("namespace {\n    const D13 = 48;\n}");
+    });
+
+    it('follows the default of the sdk option', function () {
+        Fixtures::withPins($this->sdkDir, 'demo-board', ['D13' => 48], 'global');
+
+        $this->artisan('build')->assertExitCode(0);
+
+        expect(file_get_contents($this->stub))->toContain('    const D13 = 48;');
+    });
+
+    it('does not rewrite an unchanged file', function () {
+        $this->artisan('build')->assertExitCode(0);
+        touch($this->stub, time() - 3600);
+        clearstatcache();
+        $before = filemtime($this->stub);
+
+        $this->artisan('build')->assertExitCode(0);
+
+        clearstatcache();
+        expect(filemtime($this->stub))->toBe($before);
+    });
+});

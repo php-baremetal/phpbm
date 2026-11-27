@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.2
+
+- Added: phpbm init, phpbm board (after a change of board or features) and phpbm build write `.phpbm/ide/board.php` for the IDE: the board's pin names (`pins` of the board file, php-baremetal/spec 1.5) as constants of `final class Baremetal\Board\Pin` (empty when the board has none) and, with the SDK option `board-constants` set to `global`, as global constants too. The file is rewritten only when its content changes.
+- Changed: phpbm requires php-baremetal/spec ^1.5.
+- Fixed: docs: `firmware-reserve` goes up to 8192 KB (the guide still said 4096).
+
 ## 0.4.1
 
 - Added: phpbm reads `boards/catalog.json` of the SDK and of `bm-boards` packages. A board marked `"coming-soon": true` is not offered by phpbm init (nor by phpbm board --change, unless it is the current one) and never picked by default, but `--board <id>` and phpbm board <id> take it; phpbm discover lists it as `(coming soon)` without suggesting it. phpbm init and phpbm build greet once when the board is a coming-soon one. A missing or invalid catalog is ignored.

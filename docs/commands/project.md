@@ -82,7 +82,8 @@ on with no feature (once you are online, run `phpbm board --features=all` in the
 
 It writes `composer.json` (registry, conductor, `config.platform.php` set to the newest PHP the SDK builds,
 `extra.baremetal`, the SDK constraint as `^major.minor` of the installed version), `project-src/index.php`
-when missing, and adds `/vendor/` and `/.phpbm/` to `.gitignore`. It warns when the conductor is not installed
+when missing, `.phpbm/ide/board.php` (the board's pin names for the IDE, see
+[Pin names in the IDE](../guide/project.md#pin-names-in-the-ide)), and adds `/vendor/` and `/.phpbm/` to `.gitignore`. It warns when the conductor is not installed
 or allowed globally.
 
 Then it runs `composer require` once in the project, with the packages of the chosen features and those the
@@ -104,6 +105,8 @@ phpbm init sensor -n --board=waveshare-esp32-s3-eth --runtime=event-driven --sto
 Adds or removes the features of the project's board, or changes the board and offers the new board's features.
 It runs in the project directory and reads `composer.json` directly, so it also works right after
 `phpbm init --no-install`. The SDK is resolved as the build does (`phpbm.lock`, or the `sdk` constraint).
+Once the change is written (with `--no-install` too) it rewrites `.phpbm/ide/board.php` for the board, see
+[Pin names in the IDE](../guide/project.md#pin-names-in-the-ide).
 
 <!-- @params heading="Arguments and options" -->
 <!-- @param name="board" type="string" -->
@@ -190,7 +193,8 @@ Composer or `--no-install`.
 <!-- @method name="phpbm build [--clean] [--merged]" -->
 
 Resolves the SDK (writing `phpbm.lock` the first time), checks the project against it, prepares the patched
-PHP sources and builds the firmware into `.phpbm/build`. A second build only rebuilds what changed.
+PHP sources and builds the firmware into `.phpbm/build`. A second build only rebuilds what changed. It also
+rewrites `.phpbm/ide/board.php` when the board's pin names or the option `board-constants` changed.
 `--clean` rebuilds from scratch: use it after changing the toolchain or when a build looks stale.
 
 A firmware is several images, each written at its own flash offset; on the ESP32 they are the bootloader, the

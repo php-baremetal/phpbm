@@ -201,14 +201,26 @@ Errors:
 | `network` | `off`, `on` | `off` | Bring up the wired network (DHCP) before PHP starts. |
 | `on-error` | `stop`, `continue` | `stop` | What an uncaught exception in `loop()` or an event handler does. |
 | `restart-delay` | 0 to 3600 | `5` | Seconds before the board restarts once the program has ended. |
-| `firmware-reserve` | 256 to 4096 | `1024` | PSRAM in KB kept for the rest of the firmware; PHP gets the rest as `memory_limit`. |
+| `firmware-reserve` | 256 to 8192 | `1024` | PSRAM in KB kept for the rest of the firmware; PHP gets the rest as `memory_limit`. |
 | `optimization` | `size`, `performance`, `debug` | `size` | Compiler optimization: `-Os`, `-O2` or `-Og`. |
 | `power-save` | `off`, `on` | `off` | Automatic light sleep while every task waits. |
 | `request-timeout` | 0 to 3600 | `30` | Seconds allowed for one HTTP request; `0` for no limit. |
+| `board-constants` | `class`, `global` | `class` | The board's pin names as constants of `Baremetal\Board\Pin` (`Pin::D13`), or global constants too (`D13`). |
 
 Runtimes add their own: `init-loop` has `loop-interval` (ms between two `loop()` calls), `web-server` has
 `port` and `init` (a script run once at boot). The SDK release describes every option; this table is the
 `esp32` SDK 2.0.
+
+## Pin names in the IDE
+
+A board file can name its pins (`"pins": {"D13": 48, "A3": 4}`). The firmware defines them at runtime, so phpbm
+writes `.phpbm/ide/board.php` for the IDE: the class `Baremetal\Board\Pin` with one constant per pin name (an
+empty class when the board has none) and, with the option `board-constants` set to `global`, the same names as
+global constants. phpbm init, phpbm board and phpbm build write it for the project's board; do not edit it. The
+file is only for the IDE: it is never built into the firmware.
+
+`.phpbm/` is in `.gitignore`, but PhpStorm and VS Code with Intelephense still index it. If you excluded `.phpbm/`
+from the IDE index, keep `.phpbm/ide/` in it (or add it to the PHP include paths) to see the pin names.
 
 ## The env file
 
@@ -229,5 +241,5 @@ The values are built into the firmware. Keep the file out of git when it holds s
 | --- | --- | --- |
 | `phpbm.lock` | yes | The locked SDK version and sha256. See [SDKs and phpbm.lock](./sdks.md). |
 | `composer.lock` | your choice | Composer's lock of the packages. |
-| `.phpbm/` | no | Packages installed by the conductor, `manifest.json`, the build directory. `phpbm init` adds it to `.gitignore`. |
+| `.phpbm/` | no | Packages installed by the conductor, `manifest.json`, the build directory, the IDE file of the board (`ide/board.php`). `phpbm init` adds it to `.gitignore`. |
 | `vendor/` | no | Composer's own directory (the conductor). |

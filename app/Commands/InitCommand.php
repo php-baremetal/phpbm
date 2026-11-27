@@ -11,6 +11,7 @@ use App\Board\BoardPackages;
 use App\Board\BoardSources;
 use App\Board\ComingSoon;
 use App\Board\Feature;
+use App\Board\IdeBoardStub;
 use App\Board\FeatureChoice;
 use App\PhpbmException;
 use App\Project\BoardFit;
@@ -83,6 +84,7 @@ final class InitCommand extends PhpbmCommand
             $storage->id,
             $source === null ? [] : [$source->name => self::caret($source->version)],
         );
+        IdeBoardStub::write($dir, $board, IdeBoardStub::global([], $sdk));
 
         $problem = app(ConductorCheck::class)->problem();
         if ($problem !== null) {
